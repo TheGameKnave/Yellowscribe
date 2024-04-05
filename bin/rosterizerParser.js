@@ -23,18 +23,36 @@ function extractRegistryJSON(rawData) {
     return JSON.parse(text);
 }
 
-function parseRegistry(json) {
+function parseRegistry(json, legacy = false) {
     let roster = new Model.Roster();
+    
+    // legacy parsing
+    if(legacy){
+        discoverUnits(roster, json);
 
-    discoverUnits(roster, json);
-
-    for (let error of json.errors) {
-        let errorText = error.message;
-        if (error.name.length > 0) {
-            errorText = error.name + ": " + errorText;
+        for (let error of json.errors) {
+            let errorText = error.message;
+            if (error.name.length > 0) {
+                errorText = error.name + ": " + errorText;
+            }
+            roster.addError(errorText);
         }
-        roster.addError(errorText);
     }
+    else{
+        // new parsing
+        roster = {
+            game: json.info.game,
+            edition: json.info.rulebookVersion.split('.')[0],
+            order: [],
+            groups: {},
+            errors: [],
+        };
+        registry = findParents(json);
+        discoverChildGamePieces(roster, registry);
+        discoverGroups(roster, registry);
+        roster.errors = registry.errors.map(error => error.name + ": " + error.message);
+    }
+
 
     return roster;
 }
@@ -243,8 +261,270 @@ function parseUnit(unitAsset, roster) {
     return unit;
 }
 
-module.exports.rosterizerParse = (rawData) => {
+
+function findParents(asset) {
+    // drill down through asset's traits and included assets and assign parents to each
+    ['traits','included'].forEach(division => {
+        asset.assets?.[division].forEach((subAsset,i,a) => {
+            a[i].parent = asset;
+            findParents(subAsset);
+        });
+    });
+    return asset;
+}
+function discoverChildGamePieces(roster, asset) {
+    ['traits','included'].forEach(division => {
+        for (let subAsset of asset.assets?.[division]) {
+            if (subAsset.aspects.Type ==='game piece' && !asset.parent) {
+                let uuid = require('crypto').randomBytes(4).toString("hex");
+                roster.order.unshift(uuid);
+                roster.groups[uuid] = parseGamePiece(subAsset, roster, uuid);
+            }
+        }
+    });
+}
+function parseGamePiece(asset, roster, uuid) {
+    let group = {
+        uuid: uuid,
+        name: asset.name ? `${asset.name} (${asset.aspects?.Label || asset.designation})` : (asset.aspects?.Label || asset.designation),
+        type: "game piece",
+    };
+    group.groupAsset = recurseAsset(asset);
+    let moreuuid = require('crypto').randomBytes(8).toString("hex");
+    group.gamePieces = {
+        [moreuuid]: group.groupAsset,
+    }
+    return group;
+}
+function discoverGroups(roster, asset) {
+    let hasChildGamePieces = false;
+    ['traits','included'].forEach(division => {
+        for (let subAsset of asset.assets?.[division]) {
+            if (subAsset.aspects.Type ==='game piece') {
+                hasChildGamePieces = true;
+            }else{
+                discoverGroups(roster, subAsset);
+            }
+        }
+    });
+    if (hasChildGamePieces && asset.parent) {
+        let uuid = require('crypto').randomBytes(4).toString("hex");
+        roster.order.unshift(uuid);
+        roster.groups[uuid] = parseGroup(asset, roster, uuid);
+    }
+}
+
+
+function parseGroup(asset, roster, uuid) {
+    let group = {
+        uuid: uuid,
+        name: asset.name ? `${asset.name} (${asset.aspects?.Label || asset.designation})` : (asset.aspects?.Label || asset.designation),
+    };
+    group.groupAsset = recurseAsset(asset);
+    let gamePieces = [];
+    ['traits','included'].forEach(division => {
+        asset.assets?.[division].filter(asset => asset.aspects.Type === "game piece").forEach((subAsset,i,a) => {
+            gamePieces.push(recurseAsset(subAsset, 1));
+        });
+    });
+    // make object from gamePieces array to group.gamePieces object with uid keys
+    group.gamePieces = gamePieces.reduce((obj, model) => {
+        const uuid = require('crypto').randomBytes(8).toString("hex");
+        obj[uuid] = { ...obj[uuid], ...model };
+        return obj;
+    }, {});
+    return group
+}
+
+function recurseAsset(asset, depth = 0) {
+    let parsedAsset = parseAsset(asset);
+    //flat map all assets and sub-assets with indentation value
+    parsedAsset.assets = flatMapAssets(asset, depth);
+    return parsedAsset
+}
+function parseAsset(asset) {
+    let parsedAsset = {
+        name: asset.name ? `${asset.name} (${asset.aspects?.Label || asset.designation})` : (asset.aspects?.Label || asset.designation),
+        quantity: asset.quantity,
+        keywords: asset.keywords,
+        errors: asset.errors,
+        description: asset.description,
+        text: asset.text,
+        type: asset.aspects.Type,
+    };
+    let statGroups = {};
+    Object.entries(asset.stats || {}).forEach(([statName,stat]) => {
+        if(!['hidden'].includes(stat.visibility) && (stat.processed.numeric.current !== null || stat.processed.rank.current !== null ||stat.processed.term.current !== null)) {
+            let statGroup = stat.group || 'ungrouped';
+            statGroups[statGroup] = statGroups[statGroup] || {groupOrder:0,stats:[]};
+            statGroups[statGroup].groupOrder = stat.groupOrder || 0;
+            statGroups[statGroup].stats.push({...stat,name: statName});
+        }
+    });
+    let statGroupsSorted = Object.fromEntries(
+        Object.entries(statGroups)
+            .sort(([keyA, valueA], [keyB, valueB]) => {
+                if (valueA.groupOrder === valueB.groupOrder) {
+                    return keyA.localeCompare(keyB);
+                }
+                return valueA.groupOrder - valueB.groupOrder;
+            })
+    );
+    // Move 'ungrouped' to the end if it exists
+    if (statGroupsSorted.hasOwnProperty('ungrouped')) {
+        const ungroupedValue = statGroupsSorted['ungrouped'];
+        delete statGroupsSorted['ungrouped'];
+        statGroupsSorted['ungrouped'] = ungroupedValue;
+    }
+
+    Object.keys(statGroupsSorted).forEach(statGroupKey => {
+        statGroupsSorted[statGroupKey].stats = statGroupsSorted[statGroupKey].stats.sort((a,b) => a.statOrder - b.statOrder || a.name.localeCompare(b.name));
+    });
+    parsedAsset.stats = statGroupsSorted;
+    return parsedAsset
+}
+
+
+function flatMapAssets(asset, depth = 0) {
+    let divisions = ['traits','included'];
+    let flattenedAsset = parseAsset(asset);
+    flattenedAsset.assetDepth = depth;
+
+    let flattened = [flattenedAsset];
+  
+    let assetsDisplay = orderAssets(asset,);
+    divisions.forEach(division => {
+        let assetGroupIndex = null;
+        let toPush = [];
+
+        Object.keys(assetsDisplay?.[division] || {}).forEach(assetGroup => {
+            // make group header
+            if(!divisions.includes(assetGroup) && assetsDisplay?.[division][assetGroup]?.length){
+                let assetGroupElement = {
+                    group: assetGroup,
+                    assetDepth: flattenedAsset.assetDepth + 1,
+                };
+                toPush.push(assetGroupElement);
+                assetGroupIndex = toPush.length - 1;
+            }
+            // recurse through tree
+            assetsDisplay?.[division][assetGroup]?.forEach((subAsset,i,a) => {
+                let subAssets = flatMapAssets(a[i], depth + 1);
+                toPush.push(...subAssets);
+            });
+        });
+
+        flattened.push(...toPush);
+    });
+  
+    return flattened
+}
+
+
+  /** Sorts assets based on their aspects
+   * @param asset
+   * @returns AssetDisplay
+   */
+  function orderAssets(asset){
+    let assetsDisplay = {
+        traits: {},
+        included: {}
+    };
+    if(asset.aspects['Group Includes']){
+        asset.allowed?.classifications?.forEach(className => {
+            if(!asset.disallowed?.classifications?.includes(className)){
+                assetsDisplay.included[className] = [];
+            }
+        });
+        asset.allowed?.items?.forEach(itemName => {
+            let className = itemName.split('§')[0];
+            if(!asset.disallowed?.classifications?.includes(className) && !asset.disallowed?.items.includes(itemName)){
+                assetsDisplay.included[className] = [];
+            }
+        });
+    }else{
+        assetsDisplay.included.included = []
+    }
+    let includes = asset.assets?.included || [];
+    if(asset.aspects['Order Includes A–Z']){
+        includes = sortItems(includes);
+        includes.forEach((include,i,a) => {
+            let newCrumbs = include.breadcrumbsRegistry.slice(0,-1);
+            newCrumbs.push(i)
+            a[i].breadcrumbsRegistry = [...newCrumbs];
+        });
+    }
+    let currentClasses = Array.from(new Set(asset.assets.included.map(subAsset => subAsset.classification)));
+    let groupSort = asset.assets?.included.filter(subAsset => subAsset.aspects?.['Group By']).map(subAsset => subAsset.aspects?.['Group By']);
+    if(asset.aspects['Group Includes']){
+        currentClasses.forEach(className => {
+            assetsDisplay.included[className] = [];
+        });
+    }else if(groupSort?.length){
+        let sortingGroups = new Set();
+        currentClasses.forEach(className => {
+            let classGroup = new Set();
+            let keyGroup = new Set();
+            asset.assets?.included?.forEach((subAsset) => {
+                if(subAsset.classification === className){
+                    if(subAsset.aspects?.['Group By'] && subAsset.keywords?.[subAsset.aspects?.['Group By']][0]){
+                        keyGroup.add(subAsset.keywords[subAsset.aspects?.['Group By']][0]);
+                    }else{
+                        classGroup.add(className);
+                    }
+                }
+            });
+            sortingGroups = new Set([...sortingGroups, ...classGroup]);
+            sortingGroups = new Set([...sortingGroups, ...Array.from(keyGroup).sort()]);
+        });
+        Array.from(sortingGroups).forEach(sortingGroup => {
+            assetsDisplay.included[sortingGroup] = [];
+        });
+    }
+    asset.assets?.included?.forEach((subAsset) => {
+        let className = asset.item.split('§')[0];
+        if(!asset.disallowed?.classifications?.includes(className) && !asset.disallowed?.items?.includes(asset.item)){
+            if(asset.aspects?.['Group Includes']){
+                assetsDisplay.included[subAsset.classification] = assetsDisplay.included[subAsset.classification] || [];
+                assetsDisplay.included[subAsset.classification].push(subAsset);
+            }else if(subAsset.aspects?.['Group By']){
+            let keySort = subAsset.keywords[subAsset.aspects?.['Group By']][0] || 'included';
+                assetsDisplay.included[keySort] = assetsDisplay.included[keySort] || [];
+                assetsDisplay.included[keySort].push(subAsset);
+            }else{
+                assetsDisplay.included.included = assetsDisplay.included.included || [];
+                assetsDisplay.included.included.push(subAsset);
+            }
+        }
+    });
+    asset.assets?.traits?.forEach((subAsset) => {
+        if(asset.aspects?.['Group Traits']){
+            assetsDisplay.traits[subAsset.classification] = assetsDisplay.traits[subAsset.classification] || [];
+            assetsDisplay.traits[subAsset.classification].push(subAsset);
+        }else if(subAsset.aspects?.['Group By']){
+            let keySort = subAsset.keywords[subAsset.aspects?.['Group By']][0] || 'traits';
+            assetsDisplay.traits[keySort] = assetsDisplay.traits[keySort] || [];
+            assetsDisplay.traits[keySort].push(subAsset);
+        }else{
+            assetsDisplay.traits.traits = assetsDisplay.traits.traits || [];
+            assetsDisplay.traits.traits.push(subAsset);
+        }
+    });
+    return assetsDisplay;
+}
+
+function sortItems(items){
+    logMethods('sortItems');
+    return items?.sort((a, b) => {
+        // sorts by item designation using splitting §
+        let aSort = (typeof a === 'string' ? a : a.item).split('§')[1];
+        let bSort = (typeof b === 'string' ? b : b.item).split('§')[1];
+        return aSort?.toLowerCase().localeCompare(bSort?.toLowerCase())
+    })
+}
+
+module.exports.rosterizerParse = (rawData, legacy = false) => {
     const json = extractRegistryJSON(rawData);
-    let roster = parseRegistry(json);
+    let roster = parseRegistry(json, legacy);
     return roster;
 }

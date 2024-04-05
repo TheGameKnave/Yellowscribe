@@ -6,6 +6,25 @@
     <link rel="icon" href="/favicon.ico">
 </head>
 <body>
+    <template id="groupDisplayTemplate">
+        <section class="groupDisplay" data-uuid="">
+            <h2 class="groupName"><input type="text" onFocus="this.select();" /></h2>
+            <div class="gamePieceContainer"></div>
+        </section>
+    </template>
+    <template id="gamePieceDisplayTemplate">
+        <section class="gamePieceDisplay">
+            <h3>
+                <span class="gamePieceQty"></span><span>x </span><span class="gamePieceName"></span>
+            </h3>
+        </section>
+    </template>
+    <template id="assetGroupDisplayTemplate">
+        <section class="assetDisplay">
+            <h4></h4>
+            <ul></ul>
+        </section>
+    </template>
     <template id="unitDisplayTemplate">
         <section class="unitDisplay" data-uuid="">
             <h2 class="unitName"><input type="text" onFocus="this.select();" /></h2>

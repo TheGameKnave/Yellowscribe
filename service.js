@@ -103,9 +103,10 @@ const file = new statik.Server('./site'),
                         sendHTTPResponse(res, `{ "code": "${uuid}" }`, 200);
 
                         formatAndStoreRoster(uuid,
+                            armyData.game,
                             armyData.edition,
                             armyData.order,
-                            armyData.units,
+                            armyData.units || armyData.groups,
                             postURL.searchParams.get('uiHeight'),
                             postURL.searchParams.get('uiWidth'),
                             postURL.searchParams.get('decorativeNames'),
@@ -198,7 +199,7 @@ function buildScript(modules) {
     return scriptBuilder.build(modules);
 }
 
-function formatAndStoreRoster(id, edition, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript) {
+function formatAndStoreRoster(id, game, edition, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript) {
     storeFormattedRoster(id, edition, undefined, undefined, armyData, uiHeight, uiWidth, decorativeNames, baseScript, order);
 }
 

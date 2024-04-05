@@ -93,11 +93,13 @@ for (const link of document.querySelectorAll("[data-page]"))
 
 
 function finalizeData(data) {
-    for (const unit of Object.values(data.units)) {
-        for (const model of Object.values(unit.models.models)) {
-            if (model.assignedWeapons) {
-                model.weapons = model.weapons.concat(model.assignedWeapons);
-                delete model.assignedWeapons;
+    if(!data.game){
+        for (const unit of Object.values(data.units)) {
+            for (const model of Object.values(unit.models.models)) {
+                if (model.assignedWeapons) {
+                    model.weapons = model.weapons.concat(model.assignedWeapons);
+                    delete model.assignedWeapons;
+                }
             }
         }
     }
@@ -199,16 +201,17 @@ function loadArmy(data) {
         armyDisplay = new DocumentFragment();
 
     sortedForUnassigned.sort((idA, idB) => {
-        if (data.units[idB].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
+        if (data.units?.[idB]?.unassignedWeapons?.length > 0 && data.units?.[idB].unassignedWeapons?.length === 0)
             return 1;
 
-        if (data.units[idA].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
+        if (data.units?.[idA]?.unassignedWeapons?.length > 0 && data.units?.[idB].unassignedWeapons?.length === 0)
             return -1;
 
         return 0; // both have unassigned
     });
 
-    armyDisplay.append(...sortedForUnassigned.map(id => formatUnitDisplay(data.units[id])));
+    if(!data.hasOwnProperty("game")) armyDisplay.append(...sortedForUnassigned.map(id => formatUnitDisplay(data.units[id])));
+    else armyDisplay.append(...sortedForUnassigned.map(id => formatGroupDisplay(data.groups[id])));
 
     const rosterDisplay = byID("rosterDisplayPage");
 
@@ -245,6 +248,70 @@ function formatErrorDisplay(errors) {
     errorContainer.appendChild(errorDiv);
 
     return errorBox;
+}
+
+function formatGroupDisplay(group) {
+    let groupDisplay = byID("groupDisplayTemplate").content.cloneNode(true),
+        gamePieceContainer = groupDisplay.querySelector(".gamePieceContainer"),
+        groupName = groupDisplay.querySelector(".groupName input");
+
+    groupDisplay.querySelector("section").dataset.uuid = group.uuid;
+    groupName.value = group.name;
+    on(groupName, "input", (e) => group.name = e.target.value);
+
+    if(group.type === "game piece"){
+        gamePieceContainer.appendChild(formatGamePieceDisplay(group.groupAsset, 1));
+    }else{
+        let assetDisplay;
+        group.groupAsset?.assets.forEach((asset,i,a) => {
+            if(asset.assetDepth === 1 && asset.type !== 'game piece' && a[i+1]?.type !== 'game piece') {
+                if(asset.group){
+                    if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+                    assetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
+                    assetDisplay.querySelector("h4").innerHTML = asset.group;
+                }else{
+                    let entry = document.createElement("li");
+                    entry.innerHTML = (asset.quantity > 1 ? asset.quantity + "&times; " : "") + asset.name;
+                    assetDisplay.querySelector("ul").append(entry);
+                }
+            }
+        });
+        if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+    
+        for (const gamePiece of Object.values(group.gamePieces || {}).flat())
+            gamePieceContainer.appendChild(formatGamePieceDisplay(gamePiece, 2));
+    }
+
+    return groupDisplay;
+}
+
+function formatGamePieceDisplay(gamePiece, depth) {
+    let gamePieceDisplay = byID("gamePieceDisplayTemplate").content.cloneNode(true),
+        gamePieceQty = gamePieceDisplay.querySelector(".gamePieceQty");
+
+    gamePiece.node = gamePieceDisplay.querySelector(".gamePieceDisplay");
+    gamePieceQty.setAttribute("data-qty", gamePiece.quantity);
+    gamePieceQty.innerHTML = gamePiece.quantity;
+    gamePieceDisplay.querySelector(".gamePieceName").innerHTML = gamePiece.name; 
+
+    let assetDisplay;
+    gamePiece.assets.forEach(asset =>{
+        if(asset.assetDepth === depth){
+            if(asset.group){
+                if(assetDisplay) gamePiece.node.appendChild(assetDisplay);
+                assetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
+                assetDisplay.querySelector("h4").innerHTML = asset.group;
+            }else{
+                if(!assetDisplay) assetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
+                let entry = document.createElement("li");
+                entry.innerHTML = (asset.quantity > 1 ? asset.quantity + "&times; " : "") + asset.name;
+                assetDisplay.querySelector("ul").append(entry);
+            }
+        }
+    });
+    if(assetDisplay) gamePiece.node.appendChild(assetDisplay);
+
+    return gamePieceDisplay;
 }
 
 function formatUnitDisplay(unit) {
