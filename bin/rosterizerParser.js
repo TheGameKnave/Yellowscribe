@@ -376,11 +376,28 @@ function parseAsset(asset) {
         delete statGroupsSorted['ungrouped'];
         statGroupsSorted['ungrouped'] = ungroupedValue;
     }
-
     Object.keys(statGroupsSorted).forEach(statGroupKey => {
         statGroupsSorted[statGroupKey].stats = statGroupsSorted[statGroupKey].stats.sort((a,b) => a.statOrder - b.statOrder || a.name.localeCompare(b.name));
     });
-    parsedAsset.stats = statGroupsSorted;
+
+    parsedAsset.stats = {};
+    Object.keys(statGroupsSorted).forEach(statGroupKey => {
+        let stats = {};
+        statGroupsSorted[statGroupKey].stats.map(stat => {
+            let statValue = stat.processed.format.current;
+            statValue = statValue.replace(/<[^>]*>/g, '');
+            if(!statValue){
+                switch (stat.statType) {
+                    case 'numeric': statValue = stat.processed.numeric.current; break;
+                    case 'rank':    statValue = stat.processed.rank.current;    break;
+                    case 'term':    statValue = stat.processed.term.current;    break;
+                    default:        break;
+                }
+            }
+            stats[stat.name] = statValue;
+        });
+        parsedAsset.stats = {...stats};
+    });
     return parsedAsset
 }
 
