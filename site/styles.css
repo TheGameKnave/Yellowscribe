@@ -168,6 +168,10 @@ header img:first-of-type {
     margin-right: 50px;
 }
 
+header em {
+    text-decoration: underline;
+}
+
 button {
     cursor: pointer;
 }
@@ -293,24 +297,24 @@ ol ul {
     pointer-events: none!important;
 }
 
-.unitDisplay {
+.unitDisplay, .groupDisplay {
     background-color: #999;
     width: 100%;
     padding-bottom: 4px;
 }
 
-.unitDisplay:not(:last-of-type) {
+.unitDisplay:not(:last-of-type), .groupDisplay:not(:last-of-type) {
     margin-bottom: 20px;
 }
 
-.unitName {
+.unitName, .groupName {
     margin: 0;
     margin-bottom: 0;
     height: 40px;
     width: 100%;
 }
 
-.unitName input {
+.unitName input, .groupName input {
     width: 100%;
     height: 100%;
     font-size: 28px;
@@ -318,18 +322,24 @@ ol ul {
     text-align: center;
 }
 
-.modelContainer {
+.modelContainer, .gamePieceContainer {
     display: flex;
     overflow-x: auto;
     max-width: 100%;
 }
+.gamePieceContainer > .assetDisplay {
+    background-color: #fff;
+    padding: 10px;
+    margin-right: 7px;
+    white-space: nowrap;
+}
 
-.modelContainer:before, .modelContainer:after {
+.modelContainer:before, .modelContainer:after, .gamePieceContainer:before, .gamePieceContainer:after {
     content:'';
     flex:1;
 }
 
-.modelDisplay {
+.modelDisplay, .gamePieceDisplay {
     background: #fffdad;
     padding: 10px;
     min-width: 300px;
@@ -337,23 +347,23 @@ ol ul {
     flex-direction: column;
 }
 
-.modelDisplay:not(:last-of-type) {
+.modelDisplay:not(:last-of-type), .gamePieceDisplay:not(:last-of-type) {
     margin-right: 7px;
 }
 
-.modelDisplay section:not(:last-of-type) {
+.modelDisplay section:not(:last-of-type), .gamePieceDisplay section:not(:last-of-type) {
     margin-bottom: 20px;
 }
 
-.modelDisplay h3 {
+.modelDisplay h3, .gamePieceDisplay h3, .assetDisplay h3 {
     margin-top: 0;
 }
 
-.modelDisplay h4 {
+.modelDisplay h4, .gamePieceDisplay h4, .assetDisplay h4 {
     margin: 0;
 }
 
-.modelDisplay ul {
+.modelDisplay ul, .gamePieceContainer ul {
     list-style: none;
     margin: 4px 0;
     padding-left: 15px;
@@ -458,6 +468,10 @@ ol ul {
 
 .flex {
     display: flex;
+}
+
+.centered {
+    text-align: center;
 }
 
 .centered.flex {

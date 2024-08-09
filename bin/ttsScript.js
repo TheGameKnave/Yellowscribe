@@ -44,27 +44,7 @@ class ScriptBuilder {
      * @returns A string containing the fully formatted lua scripting for the army
      */
     build(modules) {
-        let scripts = [],
-            scriptingMap = [],
-            modulesToLoad = modules.map(name => this.availableModules[name])
-                .filter(module => module);
-
-        scriptingMap.length = 10;
-
-        // load constants first because I always want them at the top
-        scripts.push("local scriptingFunctions");
-        scripts.push(...modulesToLoad.map(module => module.Constants));
-        scripts.push(...modulesToLoad.map(module => module.Module));
-
-        scriptingMap.fill("\tnone");
-
-        for (const map of modulesToLoad.map(module => module.ScriptKeys))
-            for (const [key, func] of Object.entries(map))
-                scriptingMap[parseInt(key, 10)-1] = `\t--[[${key}]]${" ".repeat(3-key.length)+func}`;
-
-        scripts.push(`-- this needs to be defined after all scripting functions\nscriptingFunctions = {\n${scriptingMap.join(",\n")}\n}`);
-
-        return "\n".repeat(5) + scripts.join("\n".repeat(5));
+        return fs.readFileSync("lua_modules/Rosterizer.lua").toString()
     }
 }
 

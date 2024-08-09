@@ -21,7 +21,7 @@ let fileToUpload, armyData;
 
 on(rosterInput, 'input', (e) => {
     // TODO: hide stuff and show loading roster
-    console.log(e.target.files);
+    // console.log(e.target.files);
     sendArmy(e.target.files[0]);
 });
 
@@ -75,9 +75,7 @@ on(submitButton, "click", () => {
 
     req.open("POST", "getArmyCode?" +
                             `uiHeight=${byID("uiHeight").value}` +
-                            `&uiWidth=${byID("uiWidth").value}` +
-                            `&decorativeNames=${byID("decorativeNames").checked}` +
-                            `&modules=MatchedPlay${crusade.checked ? ",Crusade" : ""}`);
+                            `&uiWidth=${byID("uiWidth").value}`);
 
     req.send(JSON.stringify(finalizeData(armyData)));
 });
@@ -93,11 +91,13 @@ for (const link of document.querySelectorAll("[data-page]"))
 
 
 function finalizeData(data) {
-    for (const unit of Object.values(data.units)) {
-        for (const model of Object.values(unit.models.models)) {
-            if (model.assignedWeapons) {
-                model.weapons = model.weapons.concat(model.assignedWeapons);
-                delete model.assignedWeapons;
+    if(!data.game){
+        for (const unit of Object.values(data.units)) {
+            for (const model of Object.values(unit.models.models)) {
+                if (model.assignedWeapons) {
+                    model.weapons = model.weapons.concat(model.assignedWeapons);
+                    delete model.assignedWeapons;
+                }
             }
         }
     }
@@ -152,6 +152,17 @@ function formatArmy(rosterFile) {
             submitButton.parentElement.classList.remove("hidden");
             showPage("rosterDisplay");
             byID("settingsContainer").classList.add("open");
+            if (!armyData.app.toLowerCase().includes("battlescribe")) {
+                let bsOptions = document.getElementsByClassName("bsOption");
+                for (let i = 0; i < bsOptions.length; i++) {
+                    bsOptions[i].classList.add("hidden");
+                }
+            } else {
+                let bsOptions = document.getElementsByClassName("bsOption");
+                for (let i = 0; i < bsOptions.length; i++) {
+                    bsOptions[i].classList.remove("hidden");
+                }
+            }
 
             resetUploadContainer();
         }
@@ -195,20 +206,24 @@ function clearNode(node, maxChildren = 1, fromFront = true) {
 
 
 function loadArmy(data) {
-    let sortedForUnassigned = Array.from(data.order),
-        armyDisplay = new DocumentFragment();
+    let armyDisplay = new DocumentFragment();
 
-    sortedForUnassigned.sort((idA, idB) => {
-        if (data.units[idB].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
-            return 1;
-
-        if (data.units[idA].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
-            return -1;
-
-        return 0; // both have unassigned
-    });
-
-    armyDisplay.append(...sortedForUnassigned.map(id => formatUnitDisplay(data.units[id])));
+    if(data.appVersion) {
+        armyDisplay.append(...data.order.map(id => formatGroupDisplay(data.groups[id])));
+    }else{
+        let sortedForUnassigned = Array.from(data.order);
+        sortedForUnassigned.sort((idA, idB) => {
+            if (data.groups[idB].unassignedWeapons.length > 0 && data.groups[idB].unassignedWeapons.length === 0)
+                return 1;
+    
+            if (data.groups[idA].unassignedWeapons.length > 0 && data.groups[idB].unassignedWeapons.length === 0)
+                return -1;
+    
+            return 0; // both have unassigned
+        });
+    
+        armyDisplay.append(...sortedForUnassigned.map(id => formatUnitDisplay(data.groups[id])));
+    }
 
     const rosterDisplay = byID("rosterDisplayPage");
 
@@ -225,9 +240,9 @@ function loadArmy(data) {
 }
 
 function formatErrorDisplay(errors) {
-    let errorBox = byID("unitDisplayTemplate").content.cloneNode(true),
-        errorContainer = errorBox.querySelector(".modelContainer"),
-        errorTitle = errorBox.querySelector(".unitName input");
+    let errorBox = byID("groupDisplayTemplate").content.cloneNode(true),
+        errorContainer = errorBox.querySelector(".gamePieceContainer"),
+        errorTitle = errorBox.querySelector(".groupName input");
 
     errorBox.querySelector("section").dataset.uuid = "";
     errorTitle.value = "Errors/warnings";
@@ -245,6 +260,94 @@ function formatErrorDisplay(errors) {
     errorContainer.appendChild(errorDiv);
 
     return errorBox;
+}
+
+function formatGroupDisplay(group) {
+    let groupDisplay = byID("groupDisplayTemplate").content.cloneNode(true),
+        gamePieceContainer = groupDisplay.querySelector(".gamePieceContainer"),
+        groupName = groupDisplay.querySelector(".groupName input");
+
+    groupDisplay.querySelector("section").dataset.uuid = group.uuid;
+    groupName.value = group.name;
+    on(groupName, "input", (e) => group.name = e.target.value);
+
+    if(group.type === "game piece"){
+        gamePieceContainer.appendChild(formatGamePieceDisplay(group.groupAsset, 1));
+    }else{
+        let assetDisplay;
+        let displayableAssets = group.groupAsset?.assets.filter((asset,i,a) => {
+            return asset.assetDepth === 1 && asset.type !== 'game piece' && a[i+1]?.type !== 'game piece'
+        });
+        if(displayableAssets.length > 1) {
+            assetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
+            assetDisplay.querySelector("h3").innerHTML = group.groupClass;
+            group.groupAsset?.assets.forEach((asset,i,a) => {
+                if(asset.assetDepth === 1 && asset.type !== 'game piece' && a[i+1]?.type !== 'game piece') {
+                    if(asset.group){
+                        assetDisplay.querySelector("h4").innerHTML = asset.group;
+                    }else{
+                        let entry = document.createElement("li");
+                        entry.innerHTML = (asset.quantity > 1 ? asset.quantity + "&times; " : "") + asset.name;
+                        assetDisplay.querySelector("ul").append(entry);
+                    }
+                }
+            });
+            if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+        }
+        if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+    
+        for (const gamePiece of Object.values(group.gamePieces || {}).flat())
+            gamePieceContainer.appendChild(formatGamePieceDisplay(gamePiece, 2));
+    }
+
+    return groupDisplay;
+}
+
+
+function formatGamePieceDisplay(gamePiece, depth) {
+    let gamePieceDisplay = byID("gamePieceDisplayTemplate").content.cloneNode(true);
+
+    let gamePieceNode = gamePieceDisplay.querySelector(".gamePieceDisplay");
+    gamePieceDisplay.querySelector("h3").innerHTML = (gamePiece.quantity > 1 ? gamePiece.quantity + "&times; " : "") + gamePiece.name; 
+
+    if(gamePiece.assets.length > 1){
+        let clusters = {};
+        let groupName;
+        gamePiece.assets.forEach((asset,i) => {
+            if(i){
+                if(asset.group){
+                    groupName = asset.group;
+                }else{
+                    if(!groupName){
+                        groupName = "";
+                    }
+                    clusters[groupName] = clusters[groupName] || [];
+                    clusters[groupName].push(asset);
+                }
+            }
+        });
+        Object.keys(clusters).forEach(groupName => {
+            let subAssetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
+            subAssetDisplay.querySelector("h3").remove();
+            subAssetDisplay.querySelector("h4").innerHTML = groupName;
+            if(clusters[groupName].length){
+                let assetList = document.createElement("ul");
+                let baseDepth = clusters[groupName][0].assetDepth;
+                clusters[groupName].forEach(asset => {
+                    let entry = document.createElement("li");
+                    let indent = Math.max(asset.assetDepth - baseDepth);
+                    entry.innerHTML = '&nbsp;'.repeat(indent * 4) + (asset.quantity > 1 ? asset.quantity + "× " : "") + asset.name;
+                    assetList.append(entry);
+                });            
+                // Replace the existing ul with the newly created one
+                let existingUl = subAssetDisplay.querySelector("ul");
+                existingUl.replaceWith(assetList);
+            }
+            gamePieceNode.appendChild(subAssetDisplay);
+        });
+    }
+
+    return gamePieceDisplay;
 }
 
 function formatUnitDisplay(unit) {

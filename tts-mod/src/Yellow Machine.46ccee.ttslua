@@ -124,7 +124,6 @@ local PSYCHIC_POWER_ENTRY_TEMPLATE = '{ name="${name}", warpCharge="${warpCharge
 local YELLOW_STORAGE_GUID = "43ecc1"
 local ARMY_BOARD_GUID = "2955a6"
 local DELETION_ZONE_GUID = "f33dff"
-local AGENDA_MANAGER_GUID = "45cd3f"
 local IS_IN_HOME_MOD
 local yellowStorage,YELLOW_STORAGE_XML,YELLOW_STORAGE_SCRIPT,army,armyBoard,uiHeight,uiWidth,edition
 local SLOT_POINTS = {slot={},boundingBox={},placed={},models={}}
@@ -315,7 +314,6 @@ function onLoad()
     YELLOW_STORAGE_SCRIPT = yellowStorage.getLuaScript()
 
     if not IS_IN_HOME_MOD then
-        getObjectFromGUID(AGENDA_MANAGER_GUID).destroy()
         getObjectFromGUID(DELETION_ZONE_GUID).destroy()
         yellowStorage.destroy()
 
@@ -770,9 +768,8 @@ function placeUnit(unit, startX, startZ, startY)
         --local currentModelObj = getObjectFromGUID(model.associatedModel)
         -- I dont remember why I'm passing the data as an object instead of just as arguments
         local modelProfile = getProfileForModel(model, unit)
-        local modelDescription = buildModelDescription(model, unit, modelProfile)
-        local modelNickname = (modelProfile ~= nil and ("[00ff16]"..modelProfile.w.."/"..modelProfile.w.."[-] ") or "")
-                                ..getModelDisplayName(model, unit)
+        local modelDescription = model.ttsDescription
+        local modelNickname = model.ttsNickname..getModelDisplayName(model, unit))
         local modelTags = getModelTags(model, unit)
 
         local modelData = formatModelData(model.associatedModels,
@@ -1014,8 +1011,6 @@ function getModelDisplayName(model, unit)
             return model.name
         end
     end
-
-    return model.name
 end
 
 function getModelTags(model, unit)

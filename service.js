@@ -7,7 +7,7 @@ const http = require('http'),
     HOMEPAGE = "bs2tts.html";
 const {rosterizerParse} = require("./bin/rosterizerParser");
 const {roszParse} = require("./bin/roszParser");
-const Roster = require("./bin/9eRoster");
+const Helpers = require("./bin/helpers");
 const ttsScript = require("./bin/ttsScript");
 
 
@@ -75,18 +75,22 @@ const file = new statik.Server('./site'),
                     try {
                         let filename = postURL.searchParams.get("filename");
                         let wargearAllocationMode = "allModels";
+                        let decorativeNames = false;
                         if (postURL.searchParams.get("allocationMode")) {
                             wargearAllocationMode = postURL.searchParams.get("allocationMode");
+                        }
+                        if (postURL.searchParams.get("decorativeNames")) {
+                            wargearAllocationMode = postURL.searchParams.get("decorativeNames");
                         }
                         let armyDataObj;
                         if (path.extname(filename) == '.regiztry') {
                             // Rosterizer registry
-                            armyDataObj = rosterizerParse(buf);
+                            armyDataObj = rosterizerParse(buf, decorativeNames);
                         } else {
                             // Battlescribe roster
-                            armyDataObj = roszParse(buf, wargearAllocationMode);
+                            armyDataObj = roszParse(buf, wargearAllocationMode, decorativeNames);
                         }
-                         sendHTTPResponse(res, Roster.serialize(armyDataObj, 2), 200);
+                         sendHTTPResponse(res, Helpers.serialize(armyDataObj, 2), 200);
                     } catch (err) {
                         if (err.toString().includes("Invalid or unsupported zip format.")) {
                             sendHTTPResponse(res, `{ "err": "${ERRORS.invalidFormat}" }`, 415);
@@ -102,14 +106,22 @@ const file = new statik.Server('./site'),
 
                         sendHTTPResponse(res, `{ "code": "${uuid}" }`, 200);
 
-                        formatAndStoreRoster(uuid,
+                        formatAndStoreRoster(
+                            uuid,
+                            armyData.name,
+                            armyData.game,
+                            armyData.dataSet,
                             armyData.edition,
+                            armyData.verison,
+                            armyData.app,
+                            armyData.appVersion,
+                            armyData.hash,
                             armyData.order,
-                            armyData.units,
+                            armyData.groups,
                             postURL.searchParams.get('uiHeight'),
                             postURL.searchParams.get('uiWidth'),
                             postURL.searchParams.get('decorativeNames'),
-                            buildScript(postURL.searchParams.get("modules").split(",")));
+                            buildScript(postURL.searchParams.get("modules")?.split(","),armyData.game));
                     } catch (err) {
                         sendHTTPResponse(res, `{ "err": "${ERRORS.unknown}" }`, 500);
                         console.log(err);
@@ -145,19 +157,21 @@ const file = new statik.Server('./site'),
                         // back on the subsequent call to /getArmyCode. Since we're combining both steps of
                         // that process here, the easiest way to end up with the correct format is to do a hop
                         // via JSON.
-                        armyDataObj = JSON.parse(Roster.serialize(armyDataObj, 2));
+                        armyDataObj = JSON.parse(Helpers.serialize(armyDataObj, 2));
 
                         console.log(uuid)
                         sendHTTPResponse(res, `{ "code": "${uuid}" }`, 200);
 
                         formatAndStoreRoster(uuid,
+                            armyDataObj.game,
                             armyDataObj.edition,
+                            armyDataObj.appVersion,
                             armyDataObj.order,
-                            armyDataObj.units,
+                            armyDataObj.units || armyDataObj.groups,
                             uiHeight,
                             uiWidth,
                             decorativeNames,
-                            buildScript(modules.split(",")));
+                            buildScript(modules.split(","),armyDataObj.game));
                     } catch (err) {
                         if (err.toString().includes("Invalid or unsupported zip format.")) {
                             sendHTTPResponse(res, `{ "err": "${ERRORS.invalidFormat}" }`, 415);
@@ -247,20 +261,25 @@ function loadModules() {
  * @param {string[]} modules An array containing the names of the modules to be loaded
  * @returns A string containing the fully formatted lua scripting for the army
  */
-function buildScript(modules) {
-    return scriptBuilder.build(modules);
+function buildScript(modules,game) {
+    return scriptBuilder.build(modules,game);
 }
 
-function formatAndStoreRoster(id, edition, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript) {
-    storeFormattedRoster(id, edition, undefined, undefined, armyData, uiHeight, uiWidth, decorativeNames, baseScript, order);
+function formatAndStoreRoster(id, name, game, dataSet, edition, verison, app, appVersion, hash, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript) {
+    storeFormattedRoster(id, name, game, dataSet, edition, verison, app, appVersion, hash, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript);
 }
 
-function storeFormattedRoster(id, edition, xml, height, armyData, uiHeight, uiWidth, decorativeNames, baseScript, order) {
+function storeFormattedRoster(id, name, game, dataSet, edition, verison, app, appVersion, hash, order, armyData, uiHeight, uiWidth, decorativeNames, baseScript) {
     fs.writeFileSync(`${PATH_PREFIX}${id}.json`, JSON.stringify({
-        xml,
-        edition,
-        order,
-        height,
+        name: name,
+        game: game,
+        dataSet: dataSet,
+        edition: edition,
+        version: verison,
+        app: app,
+        appVersion: appVersion,
+        hash: hash,
+        order: order,
         armyData: JSON.parse(sanitize(JSON.stringify(armyData))), // yes, I know this looks awful
         uiHeight,
         uiWidth,
