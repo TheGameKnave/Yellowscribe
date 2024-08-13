@@ -44,7 +44,7 @@ end)(nil)
 __bundle_register("Yellow Machine.46ccee.lua", function(require, _LOADED, __bundle_register, __bundle_modules)
 require("vscode/console")
 
-local DEBUG = false
+local DEBUG = true
 
 local loadedData, loadedDataOrder, originalLoadedOrder, edition, uiHeight, uiWidth, useDecorativeNames, armyDisplay, armyText
 local url = DEBUG and "http://localhost:3000/get_army_by_id?id=" or "https://yellowscribe.xyz/get_army_by_id?id="
