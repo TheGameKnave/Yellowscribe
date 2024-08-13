@@ -51,46 +51,46 @@ local url = DEBUG and "http://localhost:3000/get_army_by_id?id=" or "https://yel
 
 local uiTemplates = {
     UNIT_CONTAINER = [[ <VerticalLayout class="transparent" childForceExpandHeight="false">
-                            <Text class="unitName">${unitName}</Text>
-                            <VerticalLayout class="unitContainer" childForceExpandHeight="false" preferredHeight="${height}" spacing="20">
-                                ${unitData}
+                            <Text class="groupName">${groupName}</Text>
+                            <VerticalLayout class="groupContainer" childForceExpandHeight="false" preferredHeight="${height}" spacing="20">
+                                ${groupData}
                             </VerticalLayout>
                         </VerticalLayout> ]],
-    MODEL_CONTAINER = [[<VerticalLayout preferredWidth="500" childForceExpandHeight="false" class="modelContainer" id="${unitID}|${modelID}" preferredHeight="${height}">
-                            <Text class="modelDataName">${numberString}${modelName}</Text>
+    MODEL_CONTAINER = [[<VerticalLayout preferredWidth="500" childForceExpandHeight="false" class="gamePieceContainer" id="${groupID}|${gamePieceID}" preferredHeight="${height}">
+                            <Text class="gamePieceDataName">${numberString}${gamePieceName}</Text>
                             ${weapons}
                             ${abilities}
                         </VerticalLayout> ]],
     MODEL_DATA = [[ <VerticalLayout childForceExpandHeight="false" childForceExpandWidth="false">
                         <Text height="15"><!-- spacer --></Text>
-                        <Text class="modelDataTitle">${dataType}</Text>
-                        <Text class="modelData" preferredHeight="${height}">${data}</Text>
+                        <Text class="gamePieceDataTitle">${dataType}</Text>
+                        <Text class="gamePieceData" preferredHeight="${height}">${data}</Text>
                     </VerticalLayout> ]],
 
-    MODEL_GROUPING_CONTAINER = [[ <HorizontalLayout class="groupingContainer">${modelGroups}</HorizontalLayout> ]]
+    MODEL_GROUPING_CONTAINER = [[ <HorizontalLayout class="groupingContainer">${gamePieceGroups}</HorizontalLayout> ]]
 }
 
 --[[ UNIT SCRIPTING DATA ]]--
 --[[ everything in this section is meant to be a string because this is what we
-are inputting into created models ]]--
+are inputting into created gamePieces ]]--
 
 local UNIT_SPECIFIC_DATA_TEMPLATE = [[ --[[ UNIT-SPECIFIC DATA ${endBracket}--
-local unitData = {
+local groupData = {
     edition = "${edition}",
-    unitName = "${unitName}",
-    unitDecorativeName = "${unitDecorativeName}",
+    groupName = "${groupName}",
+    groupDecorativeName = "${groupDecorativeName}",
     factionKeywords = "${factionKeywords}",
     keywords = "${keywords}",
     abilities = {
         ${abilities}
     },
-    models = {
-        ${models}
+    gamePieces = {
+        ${gamePieces}
     }${changingCharacteristics}${woundTrack},
     weapons = {
         ${weapons}
     }${psychic},
-    uuid = "${uuid}"${singleModel},
+    uuid = "${uuid}"${singleGamePiece},
     uiHeight = ${height},
     uiWidth = ${width}
 } ]]
@@ -126,12 +126,12 @@ local ARMY_BOARD_GUID = "2955a6"
 local DELETION_ZONE_GUID = "f33dff"
 local IS_IN_HOME_MOD
 local yellowStorage,YELLOW_STORAGE_XML,YELLOW_STORAGE_SCRIPT,army,armyBoard,uiHeight,uiWidth,edition
-local SLOT_POINTS = {slot={},boundingBox={},placed={},models={}}
+local SLOT_POINTS = {slot={},boundingBox={},placed={},gamePieces={}}
 local SLOTS_TO_DISPLAY = {
     "slot",
     "boundingBox",
     "placed",
-    "models"
+    "gamePieces"
 }
 local DEFAULT_MODEL_SPACING = 0.15
 local DEFAULT_FOOTPRINT_PADDING = 0.5
@@ -158,8 +158,8 @@ local ON_BUTTON = {
     position={0,0.52,0}, rotation={180,0,180}, height=550, width=2750, font_size=220, font_style = "Bold",
     font_color={1,1,1}, color={0,150/255,0}
 }
-local modelAssociations,activeButtons = {},{}
-local numAssociatedObjects,firstModelAssociation = 0,true
+local gamePieceAssociations,activeButtons = {},{}
+local numAssociatedObjects,firstGamePieceAssociation = 0,true
 local ERROR_RED = { 1, 0.25, 0.25 }
 
 
@@ -359,12 +359,12 @@ function onPlayerAction(player, action, targets)
         end)
 
         for _,activeButton in pairs(activeButtons) do
-            local buttonModel = army[activeButton.unit].models.models[activeButton.model]
+            local buttonGamePiece = army[activeButton.group].gamePieces[activeButton.gamePiece]
 
-            buttonModel.associatedModels = targetsData
+            buttonGamePiece.associatedGamePieces = targetsData
 
             -- its ok if we overwrite this every time, we only ever need one and they shooould be all the same
-            buttonModel.associatedModelBounds = intendedTargets[1].getBoundsNormalized()
+            buttonGamePiece.associatedGamePieceBounds = intendedTargets[1].getBoundsNormalized()
 
             self.UI.setAttributes(activeButton.buttonID, {
                 color = "#33ff33"
@@ -386,43 +386,43 @@ end
 --[[ MODEL SELECTION ]]--
 
 
-function selectModelGroup(player,_, unitAndModelID)
-    local idValues = split(unitAndModelID, "|")
-    local unitID,modelID = idValues[1], idValues[2]
-    local sameButtonIndex = find(map(activeButtons, |button| button.buttonID), unitAndModelID)
+function selectGamePieceGroup(player,_, groupAndGamePieceID)
+    local idValues = split(groupAndGamePieceID, "|")
+    local groupID,gamePieceID = idValues[1], idValues[2]
+    local sameButtonIndex = find(map(activeButtons, |button| button.buttonID), groupAndGamePieceID)
 
     if sameButtonIndex > 0 then
-        for _,modelData in ipairs(army[unitID].models.models[modelID].associatedModels) do
-            getObjectFromGUID(modelData.GUID).highlightOff()
+        for _,gamePieceData in ipairs(army[groupID].gamePieces[gamePieceID].associatedGamePieces) do
+            getObjectFromGUID(gamePieceData.GUID).highlightOff()
         end
-        army[unitID].models.models[modelID].associatedModels = nil
+        army[groupID].gamePieces[gamePieceID].associatedGamePieces = nil
         table.remove(activeButtons, sameButtonIndex)
-        self.UI.setAttribute(unitAndModelID, "color", "White")
+        self.UI.setAttribute(groupAndGamePieceID, "color", "White")
     else
-        table.insert(activeButtons, { unit = unitID, model = modelID, buttonID = unitAndModelID })
-        self.UI.setAttribute(unitAndModelID, "color", "#ff00ca")
+        table.insert(activeButtons, { group = groupID, gamePiece = gamePieceID, buttonID = groupAndGamePieceID })
+        self.UI.setAttribute(groupAndGamePieceID, "color", "#ff00ca")
 
         if #activeButtons == 1 then -- if it's the first button selected
-            broadcastToAll("Pick up a model or models to represent your selection!", {r=1, g=0, b=202/255})
+            broadcastToAll("Pick up a gamePiece or gamePieces to represent your selection!", {r=1, g=0, b=202/255})
         end
     end
 end
 
-function showAssociatedModel(_,_, button)
-    highlightAssociatedModel(button, true)
+function showAssociatedGamePiece(_,_, button)
+    highlightAssociatedGamePiece(button, true)
 end
 
-function hideAssociatedModel(_,_, button)
-    highlightAssociatedModel(button, false)
+function hideAssociatedGamePiece(_,_, button)
+    highlightAssociatedGamePiece(button, false)
 end
 
-function highlightAssociatedModel(unitAndModelID, on)
-    local idValues = split(unitAndModelID, "|")
-    local buttonModel = army[idValues[1]].models.models[idValues[2]]
+function highlightAssociatedGamePiece(groupAndGamePieceID, on)
+    local idValues = split(groupAndGamePieceID, "|")
+    local buttonGamePiece = army[idValues[1]].gamePieces[idValues[2]]
 
-    if buttonModel.associatedModels ~= nil and #buttonModel.associatedModels > 0 then
-        for _,associatedModel in ipairs(buttonModel.associatedModels) do
-            local object = getObjectFromGUID(associatedModel.GUID)
+    if buttonGamePiece.associatedGamePieces ~= nil and #buttonGamePiece.associatedGamePieces > 0 then
+        for _,associatedGamePiece in ipairs(buttonGamePiece.associatedGamePieces) do
+            local object = getObjectFromGUID(associatedGamePiece.GUID)
 
             if object ~= nil then
                 if on then
@@ -516,22 +516,22 @@ end
 
 -- formats and creates the army based on selected models
 function createArmy()
-    -- we only want to create models for ones that have a model selected
-    local unitsToCreate = filter(army, function (unit)
-        unit.models.models = filter(unit.models.models, function (model)
-            if model.associatedModels == nil or #model.associatedModels == 0 then
-                -- make sure we are spawning thr right number of models if only part of a unit is beign spawned
-                unit.models.totalNumberOfModels = unit.models.totalNumberOfModels - model.number
+    -- we only want to create gamePieces for ones that have a gamePiece selected
+    local groupsToCreate = filter(army, function (group)
+        group.gamePieces = filter(group.gamePieces, function (gamePiece)
+            if gamePiece.associatedGamePieces == nil or #gamePiece.associatedGamePieces == 0 then
+                -- make sure we are spawning thr right number of gamePieces if only part of a group is beign spawned
+                group.gamePieces.totalNumberOfGamePieces = group.gamePieces.totalNumberOfGamePieces - gamePiece.number
             end
 
-            return model.associatedModels ~= nil and #model.associatedModels > 0
+            return gamePiece.associatedGamePieces ~= nil and #gamePiece.associatedGamePieces > 0
         end)
 
-        return len(unit.models.models) > 0
+        return len(group.gamePieces) > 0
     end)
 
-    if len(unitsToCreate) == 0 then
-        broadcastToAll("You haven't selected any models!", ERROR_RED)
+    if len(groupsToCreate) == 0 then
+        broadcastToAll("You haven't selected any gamePieces!", ERROR_RED)
         return
     end
 
@@ -541,49 +541,49 @@ function createArmy()
     -- this feels so inefficient to go through the array so many times,
     -- but at this point, the array really shouldn't be that long,
     -- so I dont have to worry too much about big-O
-    unitsToCreate = table.sort(map(unitsToCreate, function (unit)
-        unit.models.models = table.sort(unit.models.models, |modelA, modelB| modelA.number < modelB.number)
+    groupsToCreate = table.sort(map(groupsToCreate, function (group)
+        group.gamePieces = table.sort(group.gamePieces, |gamePieceA, gamePieceB| gamePieceA.number < gamePieceB.number)
 
-        --[[ for _,model in ipairs(unit.models.models) do
-            model.associatedModel = getObjectFromGUID(model.associatedModel)
+        --[[ for _,gamePiece in ipairs(group.gamePieces) do
+            gamePiece.associatedGamePiece = getObjectFromGUID(gamePiece.associatedGamePiece)
         end --]]
 
-        unit.footprint = determineFootprint(unit)
+        group.footprint = determineFootprint(group)
 
-        return unit
-    end), function (unitA, unitB)
-        if unitA.footprint.width == unitB.footprint.width then
-            return unitB.footprint.height < unitA.footprint.height
+        return group
+    end), function (groupA, groupB)
+        if groupA.footprint.width == groupB.footprint.width then
+            return groupB.footprint.height < groupA.footprint.height
         end
 
-        return unitA.footprint.width > unitB.footprint.width
+        return groupA.footprint.width > groupB.footprint.width
     end)
 
     local selfPosition = self.getPosition()
 
-    -- at this point, we should have a list of units sorted by width then height of their footprints
-    placeArmy(unitsToCreate, ARMY_PLACEMENT_STARTING_X + selfPosition.x, ARMY_PLACEMENT_STARTING_Z + selfPosition.z, selfPosition.y)
+    -- at this point, we should have a list of groups sorted by width then height of their footprints
+    placeArmy(groupsToCreate, ARMY_PLACEMENT_STARTING_X + selfPosition.x, ARMY_PLACEMENT_STARTING_Z + selfPosition.z, selfPosition.y)
 end
 
 
-function placeArmy(unitMap, startingX, startingZ, startingY)
+function placeArmy(groupMap, startingX, startingZ, startingY)
     local emptySlots = {} -- {{x,z,h,w},...}
     local boundingBox = { h=0, w=0 }
 
-    for _,unit in pairs(unitMap) do
+    for _,group in pairs(groupMap) do
         local placedInEmptySlot = false
 
         -- try to place at an origin
         for idx,slot in ipairs(emptySlots) do
-            if unit.footprint.height <= slot.h and unit.footprint.width <= slot.w then
-                placeUnit(unit, startingX-slot.x, startingZ+slot.z, startingY)
+            if group.footprint.height <= slot.h and group.footprint.width <= slot.w then
+                placeGroup(group, startingX-slot.x, startingZ+slot.z, startingY)
 
                 if DEBUG then
                     table.insert(SLOT_POINTS.placed, { points= {
                         {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
-                        {startingX-slot.x-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
-                        {startingX-slot.x-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
-                        {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
+                        {startingX-slot.x-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
+                        {startingX-slot.x-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
+                        {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
                         {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z}
                     },
                     color = {0,0,0}})
@@ -593,43 +593,43 @@ function placeArmy(unitMap, startingX, startingZ, startingY)
 
                 -- slot to the side should be filled first if possible
                 -- so insert the top one first
-                if (slot.h - unit.footprint.height) >= 1 then
+                if (slot.h - group.footprint.height) >= 1 then
                     if DEBUG then
                         table.insert(SLOT_POINTS.slot,{points= {
-                            {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
-                            {startingX-slot.x-slot.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
+                            {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
+                            {startingX-slot.x-slot.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
                             {startingX-slot.x-slot.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z+slot.h},
                             {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+slot.h},
-                            {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height}
+                            {startingX-slot.x,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height}
                         },
                         color = {0,1,0}})
                     end
 
                     table.insert(emptySlots, {
                         x = slot.x,
-                        z = slot.z + unit.footprint.height,
-                        h = slot.h - unit.footprint.height,
+                        z = slot.z + group.footprint.height,
+                        h = slot.h - group.footprint.height,
                         w = slot.w
                     })
                 end
 
-                if (slot.w - unit.footprint.width) >= 1 then
+                if (slot.w - group.footprint.width) >= 1 then
                     if DEBUG then
                         table.insert(SLOT_POINTS.slot,{ points = {
-                            {startingX-slot.x-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
+                            {startingX-slot.x-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
                             {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z},
-                            {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
-                            {startingX-slot.x-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z+unit.footprint.height},
-                            {startingX-slot.x-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z}
+                            {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
+                            {startingX-slot.x-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z+group.footprint.height},
+                            {startingX-slot.x-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+slot.z}
                         },
                         color = {0,0,1}})
                     end
 
                     table.insert(emptySlots, {
-                        x = slot.x + unit.footprint.width,
+                        x = slot.x + group.footprint.width,
                         z = slot.z,
-                        w = slot.w - unit.footprint.width,
-                        h = unit.footprint.height
+                        w = slot.w - group.footprint.width,
+                        h = group.footprint.height
                     })
                 end
                 -- >= 1 because we dont want to make additional tiny slots that will never be filled
@@ -642,80 +642,80 @@ function placeArmy(unitMap, startingX, startingZ, startingY)
         if placedInEmptySlot then -- do nothing
 
         -- if expanding upward makes sense
-        elseif (boundingBox.h + unit.footprint.height) < (boundingBox.w * BOUNDING_BOX_RATIO) then
-            placeUnit(unit, startingX, startingZ + boundingBox.h, startingY)
+        elseif (boundingBox.h + group.footprint.height) < (boundingBox.w * BOUNDING_BOX_RATIO) then
+            placeGroup(group, startingX, startingZ + boundingBox.h, startingY)
 
             if DEBUG then
                 table.insert(SLOT_POINTS.placed, { points= {
                     {startingX,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
-                    {startingX-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
-                    {startingX-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+unit.footprint.height},
-                    {startingX,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+unit.footprint.height},
+                    {startingX-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
+                    {startingX-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+group.footprint.height},
+                    {startingX,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+group.footprint.height},
                     {startingX,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h}
                 },
                 color = {0,0,0}})
             end
 
-            if (boundingBox.w - unit.footprint.width >= 1) then
+            if (boundingBox.w - group.footprint.width >= 1) then
                 if DEBUG then
                     table.insert(SLOT_POINTS.slot, { points= {
-                        {startingX-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
+                        {startingX-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
                         {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
-                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+unit.footprint.height},
-                        {startingX-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+unit.footprint.height},
-                        {startingX-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h}
+                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+group.footprint.height},
+                        {startingX-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h+group.footprint.height},
+                        {startingX-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h}
                     },
                     color = {1,0,1}})
                 end
 
                 table.insert(emptySlots, {
-                    x = unit.footprint.width,
+                    x = group.footprint.width,
                     z = boundingBox.h,
-                    h = unit.footprint.height,
-                    w = boundingBox.w - unit.footprint.width
+                    h = group.footprint.height,
+                    w = boundingBox.w - group.footprint.width
                 })
             end
 
-            boundingBox.h = boundingBox.h + unit.footprint.height
+            boundingBox.h = boundingBox.h + group.footprint.height
 
         -- else place at far left
         else
-            placeUnit(unit, startingX - boundingBox.w, startingZ, startingY)
+            placeGroup(group, startingX - boundingBox.w, startingZ, startingY)
 
             if DEBUG then
                 table.insert(SLOT_POINTS.placed, { points= {
                     {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ},
-                    {startingX-boundingBox.w-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ},
-                    {startingX-boundingBox.w-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+unit.footprint.height},
-                    {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+unit.footprint.height},
+                    {startingX-boundingBox.w-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ},
+                    {startingX-boundingBox.w-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+group.footprint.height},
+                    {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+group.footprint.height},
                     {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ}
                 },
                 color = {0,0,0}})
             end
 
-            if boundingBox.h - unit.footprint.height >= 1 then
+            if boundingBox.h - group.footprint.height >= 1 then
                 if DEBUG then
                     table.insert(SLOT_POINTS.slot, { points= {
-                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+unit.footprint.height},
-                        {startingX-boundingBox.w-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+unit.footprint.height},
-                        {startingX-boundingBox.w-unit.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
+                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+group.footprint.height},
+                        {startingX-boundingBox.w-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+group.footprint.height},
+                        {startingX-boundingBox.w-group.footprint.width,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
                         {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+boundingBox.h},
-                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+unit.footprint.height}
+                        {startingX-boundingBox.w,MODEL_PLACEMENT_Y+1,startingZ+group.footprint.height}
                     },
                     color = {0,0,0}})
                 end
 
                 table.insert(emptySlots, {
                     x = boundingBox.w,
-                    z = unit.footprint.height,
-                    h = boundingBox.h - unit.footprint.height,
-                    w = unit.footprint.width
+                    z = group.footprint.height,
+                    h = boundingBox.h - group.footprint.height,
+                    w = group.footprint.width
                 })
             end
 
-            boundingBox.w = boundingBox.w + unit.footprint.width
+            boundingBox.w = boundingBox.w + group.footprint.width
 
-            if boundingBox.h == 0 then boundingBox.h = unit.footprint.height end -- handle first unit
+            if boundingBox.h == 0 then boundingBox.h = group.footprint.height end -- handle first group
         end
     end
 
@@ -754,122 +754,122 @@ function placeArmy(unitMap, startingX, startingZ, startingY)
 end
 
 
-function placeUnit(unit, startX, startZ, startY)
-    -- cheap way of determining a "sergeant" model:
+function placeGroup(group, startX, startZ, startY)
+    -- cheap way of determining a "sergeant" gamePiece:
     -- sort by number, pick the first, hope for the best
-    local isFirstModel = true
+    local isFirstGamePiece = true
     local xOffset = startX - DEFAULT_FOOTPRINT_PADDING -- left is negative
     local zOffset = startZ + DEFAULT_FOOTPRINT_PADDING -- up is positive
-    local modelSize
-    local currentRowHeight,currentModelsInRow = 0,0
-    local leaderData = formatLeaderScript(unit)
+    local gamePieceSize
+    local currentRowHeight,currentGamePiecesInRow = 0,0
+    local leaderData = formatLeaderScript(group)
 
-    for modelID,model in pairs(unit.models.models) do
-        --local currentModelObj = getObjectFromGUID(model.associatedModel)
+    for gamePieceID,gamePiece in pairs(group.gamePieces) do
+        --local currentGamePieceObj = getObjectFromGUID(gamePiece.associatedGamePiece)
         -- I dont remember why I'm passing the data as an object instead of just as arguments
-        local modelProfile = getProfileForModel(model, unit)
-        local modelDescription = model.ttsDescription
-        local modelNickname = model.ttsNickname..getModelDisplayName(model, unit)
-        local modelTags = getModelTags(model, unit)
+        local gamePieceProfile = getProfileForGamePiece(gamePiece, group)
+        local gamePieceDescription = gamePiece.ttsDescription
+        local gamePieceNickname = gamePiece.ttsNickname..getGamePieceDisplayName(gamePiece, group)
+        local gamePieceTags = getGamePieceTags(gamePiece, group)
 
-        local modelData = formatModelData(model.associatedModels,
-                                            modelDescription,
-                                            modelNickname,
-                                            modelTags)
+        local gamePieceData = formatGamePieceData(gamePiece.associatedGamePieces,
+                                            gamePieceDescription,
+                                            gamePieceNickname,
+                                            gamePieceTags)
 
-        modelSize = model.associatedModelBounds.size
-        --log(model)
+        gamePieceSize = gamePiece.associatedGamePieceBounds.size
+        --log(gamePiece)
 
-        if currentRowHeight < modelSize.z then currentRowHeight = modelSize.z end
+        if currentRowHeight < gamePieceSize.z then currentRowHeight = gamePieceSize.z end
 
-        for i=1,model.number do
-            createModelFromData(chooseRandomModel(modelData),
-                                --unit.decorativeName and unit.decorativeName or unit.name,
-                                xOffset-(modelSize.x*0.5),
-                                zOffset+(modelSize.z*0.5),
+        for i=1,gamePiece.number do
+            createGamePieceFromData(chooseRandomGamePiece(gamePieceData),
+                                --group.decorativeName and group.decorativeName or group.name,
+                                xOffset-(gamePieceSize.x*0.5),
+                                zOffset+(gamePieceSize.z*0.5),
                                 startY,
                                 leaderData)
-            table.insert(SLOT_POINTS.models,{ points = {
+            table.insert(SLOT_POINTS.gamePieces,{ points = {
                 {xOffset,MODEL_PLACEMENT_Y+1,zOffset},
-                {xOffset-modelSize.x,MODEL_PLACEMENT_Y+1,zOffset},
-                {xOffset-modelSize.x,MODEL_PLACEMENT_Y+1,zOffset+modelSize.z},
-                {xOffset,MODEL_PLACEMENT_Y+1,zOffset+modelSize.z},
+                {xOffset-gamePieceSize.x,MODEL_PLACEMENT_Y+1,zOffset},
+                {xOffset-gamePieceSize.x,MODEL_PLACEMENT_Y+1,zOffset+gamePieceSize.z},
+                {xOffset,MODEL_PLACEMENT_Y+1,zOffset+gamePieceSize.z},
                 {xOffset,MODEL_PLACEMENT_Y+1,zOffset}
             },
             color = {0,0,1}})
             leaderData = nil
-            currentModelsInRow = currentModelsInRow + 1
+            currentGamePiecesInRow = currentGamePiecesInRow + 1
 
 
-            if currentModelsInRow == unit.modelsPerRow then
-                currentModelsInRow = 0
+            if currentGamePiecesInRow == group.gamePiecesPerRow then
+                currentGamePiecesInRow = 0
                 xOffset = startX - DEFAULT_FOOTPRINT_PADDING
                 zOffset = zOffset + currentRowHeight + DEFAULT_MODEL_SPACING
             else
-                xOffset = xOffset - (modelSize.x + DEFAULT_MODEL_SPACING)
+                xOffset = xOffset - (gamePieceSize.x + DEFAULT_MODEL_SPACING)
             end
         end
     end
 end
 
--- determines how much space a unit should take up once it is created
-function determineFootprint(unit)
-    -- determine models per row
-    local modelsPerRow = unit.models.totalNumberOfModels
-    local currentModelsInRow,currentWidth,footprintWidth,footprintHeight,modelsLeft = 0,0,0,0,0
+-- determines how much space a group should take up once it is created
+function determineFootprint(group)
+    -- determine gamePieces per row
+    local gamePiecesPerRow = group.gamePieces.totalNumberOfGamePieces
+    local currentGamePiecesInRow,currentWidth,footprintWidth,footprintHeight,gamePiecesLeft = 0,0,0,0,0
     local currentRow = 1
     local currentHeights = {}
-    local currentModelBounds
+    local currentGamePieceBounds
 
-    if modelsPerRow > 5 then
-        if modelsPerRow < 20 and modelsPerRow % 3 == 0 then
-            if modelsPerRow < 12 then modelsPerRow = 3
-            else modelsPerRow = modelsPerRow / 3 end
-        elseif modelsPerRow < 20 and modelsPerRow % 5 == 0 then
-            modelsPerRow = 5
-        elseif modelsPerRow > 10 then
-            modelsPerRow = 10
+    if gamePiecesPerRow > 5 then
+        if gamePiecesPerRow < 20 and gamePiecesPerRow % 3 == 0 then
+            if gamePiecesPerRow < 12 then gamePiecesPerRow = 3
+            else gamePiecesPerRow = gamePiecesPerRow / 3 end
+        elseif gamePiecesPerRow < 20 and gamePiecesPerRow % 5 == 0 then
+            gamePiecesPerRow = 5
+        elseif gamePiecesPerRow > 10 then
+            gamePiecesPerRow = 10
         end
     end
 
-    unit.modelsPerRow = modelsPerRow
+    group.gamePiecesPerRow = gamePiecesPerRow
 
-    -- I realize that this is doing almost exactly what we will do later when actually creating the models
-    -- unfortunately, this is the only way that I can think of to guarantee the footprint of a unit
-    -- with models of different sizes
-    for _,model in pairs(unit.models.models) do
-        currentModelBounds = model.associatedModelBounds.size
+    -- I realize that this is doing almost exactly what we will do later when actually creating the gamePieces
+    -- unfortunately, this is the only way that I can think of to guarantee the footprint of a group
+    -- with gamePieces of different sizes
+    for _,gamePiece in pairs(group.gamePieces) do
+        currentGamePieceBounds = gamePiece.associatedGamePieceBounds.size
 
-        if currentHeights[currentRow] == nil or currentModelBounds.z > currentHeights[currentRow] then
-            currentHeights[currentRow] = currentModelBounds.z
+        if currentHeights[currentRow] == nil or currentGamePieceBounds.z > currentHeights[currentRow] then
+            currentHeights[currentRow] = currentGamePieceBounds.z
         end
 
-        if (currentModelsInRow + model.number) >= modelsPerRow then
-            currentWidth = currentWidth + ((modelsPerRow - currentModelsInRow) * (currentModelBounds.x + DEFAULT_MODEL_SPACING))
+        if (currentGamePiecesInRow + gamePiece.number) >= gamePiecesPerRow then
+            currentWidth = currentWidth + ((gamePiecesPerRow - currentGamePiecesInRow) * (currentGamePieceBounds.x + DEFAULT_MODEL_SPACING))
 
             if currentWidth > footprintWidth then footprintWidth = currentWidth end
 
-            modelsLeft = model.number - (modelsPerRow - currentModelsInRow)
+            gamePiecesLeft = gamePiece.number - (gamePiecesPerRow - currentGamePiecesInRow)
             currentRow = currentRow + 1
 
-            while modelsLeft >= modelsPerRow do
-                table.insert(currentHeights, currentModelBounds.z + DEFAULT_MODEL_SPACING)
+            while gamePiecesLeft >= gamePiecesPerRow do
+                table.insert(currentHeights, currentGamePieceBounds.z + DEFAULT_MODEL_SPACING)
                 currentRow = currentRow + 1
-                modelsLeft = modelsLeft - modelsPerRow
-                currentWidth = (currentModelBounds.x + DEFAULT_MODEL_SPACING) * modelsPerRow
+                gamePiecesLeft = gamePiecesLeft - gamePiecesPerRow
+                currentWidth = (currentGamePieceBounds.x + DEFAULT_MODEL_SPACING) * gamePiecesPerRow
             end
 
-            if modelsLeft > 0 then
-                table.insert(currentHeights, currentModelBounds.z + DEFAULT_MODEL_SPACING)
-                currentModelsInRow = modelsLeft
+            if gamePiecesLeft > 0 then
+                table.insert(currentHeights, currentGamePieceBounds.z + DEFAULT_MODEL_SPACING)
+                currentGamePiecesInRow = gamePiecesLeft
             end
 
             if currentWidth > footprintWidth then footprintWidth = currentWidth end
 
-            currentWidth = currentModelsInRow * (currentModelBounds.x + DEFAULT_MODEL_SPACING)
+            currentWidth = currentGamePiecesInRow * (currentGamePieceBounds.x + DEFAULT_MODEL_SPACING)
         else
-            currentWidth = currentWidth + (model.number * (currentModelBounds.x + DEFAULT_MODEL_SPACING))
-            currentModelsInRow = currentModelsInRow + model.number
+            currentWidth = currentWidth + (gamePiece.number * (currentGamePieceBounds.x + DEFAULT_MODEL_SPACING))
+            currentGamePiecesInRow = currentGamePiecesInRow + gamePiece.number
         end
     end
 
@@ -881,42 +881,42 @@ function determineFootprint(unit)
     return { width = footprintWidth+(2*DEFAULT_FOOTPRINT_PADDING), height = footprintHeight+(2*DEFAULT_FOOTPRINT_PADDING) }
 end
 
--- formats both the leader and follower model data from a given model
-function formatModelData(associatedModels, description, nickname, tags)
-    for _,modelData in ipairs(associatedModels) do
-        modelData.Description = description
-        modelData.Nickname = nickname
-        modelData.Tags = tags
+-- formats both the leader and follower gamePiece data from a given gamePiece
+function formatGamePieceData(associatedGamePieces, description, nickname, tags)
+    for _,gamePieceData in ipairs(associatedGamePieces) do
+        gamePieceData.Description = description
+        gamePieceData.Nickname = nickname
+        gamePieceData.Tags = tags
         -- make sure base data doesnt include any xml or luascript
-        modelData.XmlUI = ""
-        modelData.LuaScript = ""
-        modelData.LuaScriptState = nil
+        gamePieceData.XmlUI = ""
+        gamePieceData.LuaScript = ""
+        gamePieceData.LuaScriptState = nil
     end
 
-    return associatedModels
+    return associatedGamePieces
 end
 
 
-function formatLeaderScript(unit)
+function formatLeaderScript(group)
     return interpolate(UNIT_SPECIFIC_DATA_TEMPLATE, {
         edition = edition,
-        unitName = unit.name,
-        unitDecorativeName = (unit.decorativeName ~= nil and unit.decorativeName ~= "") and unit.decorativeName:gsub('"', '\\"') or unit.name,
+        groupName = group.name,
+        groupDecorativeName = (group.decorativeName ~= nil and group.decorativeName ~= "") and group.decorativeName:gsub('"', '\\"') or group.name,
 
-        factionKeywords = table.concat(unit.factionKeywords, ", "), -- dont break xml   --map(unit.factionKeywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
+        factionKeywords = table.concat(group.factionKeywords, ", "), -- dont break xml   --map(group.factionKeywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
 
-        keywords = table.concat(unit.keywords, ", "), -- dont break xml   --map(unit.keywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
+        keywords = table.concat(group.keywords, ", "), -- dont break xml   --map(group.keywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
 
-        abilities = getFormattedAbilities(unit.abilities, unit.rules),
+        abilities = getFormattedAbilities(group.abilities, group.rules),
 
-        models = table.concat(map(unit.modelProfiles, function (profile)
-            -- if the unit has brackets, treat each one as a separate model
-            if unit.woundTrack ~= nil and unit.woundTrack[profile.name] then
+        gamePieces = table.concat(map(group.gamePieceProfiles, function (profile)
+            -- if the group has brackets, treat each one as a separate gamePiece
+            if group.woundTrack ~= nil and group.woundTrack[profile.name] then
                 local toReturn = {}
                 local originalName = profile.name
                 local changing
 
-                for key,bracket in pairs(unit.woundTrack[profile.name]) do
+                for key,bracket in pairs(group.woundTrack[profile.name]) do
                     profile.name = originalName.." ("..key..")"
                     changing = tableToFlatString(profile)
 
@@ -931,22 +931,22 @@ function formatLeaderScript(unit)
                 return table.concat(toReturn, ",\n\t\t")
             end
 
-            -- otherwise, just add the model
+            -- otherwise, just add the gamePiece
             return tableToFlatString(profile)
         end), ",\n\t\t"),
 
-        weapons = table.concat(map(unit.weapons, |weapon| interpolate(edition == "10e" and WEAPON_ENTRY_TEMPLATE_10E or WEAPON_ENTRY_TEMPLATE_9E, weapon)), ",\n\t\t"),
+        weapons = table.concat(map(group.weapons, |weapon| interpolate(edition == "10e" and WEAPON_ENTRY_TEMPLATE_10E or WEAPON_ENTRY_TEMPLATE_9E, weapon)), ",\n\t\t"),
 
         endBracket = "]]",
-        uuid = unit.uuid,
+        uuid = group.uuid,
         height = uiHeight,
         width = uiWidth,
 
-        changingCharacteristics = unit.woundTrack == nil and "" or interpolate(CHANGING_CHARACTERISTICS_TEMPLATE, {
-            changingChars = formatChangingCharacteristics(unit)
+        changingCharacteristics = group.woundTrack == nil and "" or interpolate(CHANGING_CHARACTERISTICS_TEMPLATE, {
+            changingChars = formatChangingCharacteristics(group)
         }),
 
-        woundTrack = unit.woundTrack == nil and "" or "\twoundTrack = "..tableToString(map(unit.woundTrack, function (tracks, name)
+        woundTrack = group.woundTrack == nil and "" or "\twoundTrack = "..tableToString(map(group.woundTrack, function (tracks, name)
             return interpolate(WOUND_TRACK_ENTRY_TEMPLATE, {
                 tracks = table.concat(map(tracks, function (track, key)
                     local temp = '["'..key..'"] = { "'
@@ -960,19 +960,19 @@ function formatLeaderScript(unit)
 
         end), ",\n", true, "\t"),
 
-        singleModel = (not unit.isSingleModel) and "" or ",\n\tisSingleModel = true",
+        singleGamePiece = (not group.isSingleGamePiece) and "" or ",\n\tisSingleGamePiece = true",
 
-        psychic = unit.psykerProfiles == nil and "" or ",\n\tpsykerProfiles = "..
-            tableToString(map(unit.psykerProfiles, |profile| tableToFlatString(profile)), ",\n\t\t", true, "\t", "\t\t")..
+        psychic = group.psykerProfiles == nil and "" or ",\n\tpsykerProfiles = "..
+            tableToString(map(group.psykerProfiles, |profile| tableToFlatString(profile)), ",\n\t\t", true, "\t", "\t\t")..
             ",\n\tpowersKnown = "..
-            tableToString(map(unit.powersKnown, |power| interpolate(PSYCHIC_POWER_ENTRY_TEMPLATE, power)), ",\n\t\t", true, "\t", "\t\t")
+            tableToString(map(group.powersKnown, |power| interpolate(PSYCHIC_POWER_ENTRY_TEMPLATE, power)), ",\n\t\t", true, "\t", "\t\t")
     })..YELLOW_STORAGE_SCRIPT
 end
 
-function formatChangingCharacteristics(unit)
+function formatChangingCharacteristics(group)
     local changing = {}
 
-    for _,profile in pairs(unit.modelProfiles) do
+    for _,profile in pairs(group.gamePieceProfiles) do
         for char,val in pairs(profile) do -- profile
             if val == "*" then
                 if changing[profile.name] == nil then changing[profile.name] = {} end
@@ -982,11 +982,11 @@ function formatChangingCharacteristics(unit)
         end
     end
 
-    --[[ for name,_ in pairs(unit.woundTrack) do
+    --[[ for name,_ in pairs(group.woundTrack) do
 
         changing[name] = {}
 
-        for char,val in pairs(unit.modelProfiles[name]) do -- profile
+        for char,val in pairs(group.gamePieceProfiles[name]) do -- profile
             if val == "*" then table.insert(changing[name], char) end
         end
     end --]]
@@ -1003,32 +1003,32 @@ function formatChangingCharacteristics(unit)
     return table.concat(toReturn, ",\n\t\t")
 end
 
-function getModelDisplayName(model, unit)
-    if unit.isSingleModel or useDecorativeNames then
-        if unit.decorativeName ~= nil and unit.decorativeName ~= "" then
-            return unit.decorativeName
+function getGamePieceDisplayName(gamePiece, group)
+    if group.isSingleGamePiece or useDecorativeNames then
+        if group.decorativeName ~= nil and group.decorativeName ~= "" then
+            return group.decorativeName
         else
-            return model.name
+            return gamePiece.name
         end
     end
 end
 
-function getModelTags(model, unit)
-    local tags = { "uuid:"..unit.uuid }
+function getGamePieceTags(gamePiece, group)
+    local tags = { "uuid:"..group.uuid }
 
-    if unit.woundTrack ~= nil then
-        for key,_ in pairs(unit.woundTrack) do
-            if key == model.name then table.insert(tags, "wt:"..model.name)
-            -- this is a special case for Armigers (i.e. units that have multiple of the same model that has a wound track)
+    if group.woundTrack ~= nil then
+        for key,_ in pairs(group.woundTrack) do
+            if key == gamePiece.name then table.insert(tags, "wt:"..gamePiece.name)
+            -- this is a special case for Armigers (i.e. groups that have multiple of the same gamePiece that has a wound track)
             -- where the data source creator named the profile in the plural ("Armigers")
-            elseif key == model.name.."s" then table.insert(tags, "wt:"..model.name.."s") end
+            elseif key == gamePiece.name.."s" then table.insert(tags, "wt:"..gamePiece.name.."s") end
         end
     end
 
     return tags
 end
 
--- Combine abilities and rules and format them properly to be displayed in a unit's datasheet
+-- Combine abilities and rules and format them properly to be displayed in a group's datasheet
 function getFormattedAbilities(abilities, rules)
     local abilitiesString = table.concat(map(abilities, function (ability)
         ability.name = ability.name:gsub("%[", "("):gsub("%]", ")") -- try not to break formatting
@@ -1048,97 +1048,97 @@ function getFormattedAbilities(abilities, rules)
     return abilitiesString
 end
 
--- chooses a random model from the given array
+-- chooses a random gamePiece from the given array
 -- technically this is a general method that could be used for selecting
 -- a random value from any array
-function chooseRandomModel(modelArray)
-    if #modelArray == 1 then return modelArray[1] end
-    if modelArray == nil or #modelArray == 0 then return nil end
+function chooseRandomGamePiece(gamePieceArray)
+    if #gamePieceArray == 1 then return gamePieceArray[1] end
+    if gamePieceArray == nil or #gamePieceArray == 0 then return nil end
 
-    return modelArray[math.random(1, #modelArray)] -- both inclusive
+    return gamePieceArray[math.random(1, #gamePieceArray)] -- both inclusive
 end
 
--- spawns a model from the given data set
-function createModelFromData(modelData, x, z, y, leaderModelScript)
-    if leaderModelScript ~= nil then
-        modelData = clone(modelData) -- prevent weird things with tables being treated as references
-        table.insert(modelData.Tags, "leaderModel")
-        modelData.XmlUI = YELLOW_STORAGE_XML
-        modelData.LuaScript = leaderModelScript
+-- spawns a gamePiece from the given data set
+function createGamePieceFromData(gamePieceData, x, z, y, leaderGamePieceScript)
+    if leaderGamePieceScript ~= nil then
+        gamePieceData = clone(gamePieceData) -- prevent weird things with tables being treated as references
+        table.insert(gamePieceData.Tags, "leaderGamePiece")
+        gamePieceData.XmlUI = YELLOW_STORAGE_XML
+        gamePieceData.LuaScript = leaderGamePieceScript
     end
 
     local spawnData = {
-        data = modelData,
+        data = gamePieceData,
         position = {
             x = x,
             y = MODEL_PLACEMENT_Y+y,
             z = z
         },
-        rotation = { x=0, y=180, z=0 }, -- this seems right for most (but not all models)
+        rotation = { x=0, y=180, z=0 }, -- this seems right for most (but not all gamePieces)
     }
 
     spawnObjectData(spawnData)
 end
 
--- finds the appropriate characteristic profile for the given model in the given unit
-function getProfileForModel(model, unit)
-    local otherModelsProfile = nil
+-- finds the appropriate characteristic profile for the given gamePiece in the given group
+function getProfileForGamePiece(gamePiece, group)
+    local otherGamePiecesProfile = nil
 
-    for _,profile in pairs(unit.modelProfiles) do
-        if profile.name == model.name then
+    for _,profile in pairs(group.gamePieceProfiles) do
+        if profile.name == gamePiece.name then
             return profile
         end
 
-        if profile.name:lower() == "other models" then
-            otherModelsProfile = profile
+        if profile.name:lower() == "other gamePieces" then
+            otherGamePiecesProfile = profile
         end
     end
     -- if there arent any exactly matching profiles, try a more fuzzy search (both ways - profile name
-    -- contains model name, and model name contains profile name)
-    for _,profile in pairs(unit.modelProfiles) do
-        local found = profile.name:find(model.name, 1, true) -- search for plain text (ie not pattern)
+    -- contains gamePiece name, and gamePiece name contains profile name)
+    for _,profile in pairs(group.gamePieceProfiles) do
+        local found = profile.name:find(gamePiece.name, 1, true) -- search for plain text (ie not pattern)
         if found ~= nil then return profile end
 
-        found = model.name:find(profile.name, 1, true)
+        found = gamePiece.name:find(profile.name, 1, true)
         if found ~= nil then return profile end
     end
-    -- In 10th edition, at least one unit has "Other Models" as a catch-all
-    if otherModelsProfile then
-        return otherModelsProfile
+    -- In 10th edition, at least one group has "Other GamePieces" as a catch-all
+    if otherGamePiecesProfile then
+        return otherGamePiecesProfile
     end
-    -- if there arent any matching profiles, assume there's only one profile for every model in the unit
-    for _,profile in pairs(unit.modelProfiles) do return profile end
+    -- if there arent any matching profiles, assume there's only one profile for every gamePiece in the group
+    for _,profile in pairs(group.gamePieceProfiles) do return profile end
 
     -- returns nil if not found
 end
 
--- gets a model's description
-function buildModelDescription(model, unit, modelProfile)
-    return  formatCharDesc(modelProfile, unit)..
-            formatWeaponDesc(model, unit, modelProfile ~= nil)..
-            formatAbilityDesc(model, unit, modelProfile ~= nil)..
-            formatPsychicDesc(model, unit, modelProfile ~= nil)
+-- gets a gamePiece's description
+function buildGamePieceDescription(gamePiece, group, gamePieceProfile)
+    return  formatCharDesc(gamePieceProfile, group)..
+            formatWeaponDesc(gamePiece, group, gamePieceProfile ~= nil)..
+            formatAbilityDesc(gamePiece, group, gamePieceProfile ~= nil)..
+            formatPsychicDesc(gamePiece, group, gamePieceProfile ~= nil)
 end
 
--- formats the characteristics section in a model's description
-function formatCharDesc(modelProfile, unit)
-    if modelProfile == nil then return "" end -- handles the rare case where a model just doesnt have a profile (eg Mekboy Workshop)
+-- formats the characteristics section in a gamePiece's description
+function formatCharDesc(gamePieceProfile, group)
+    if gamePieceProfile == nil then return "" end -- handles the rare case where a gamePiece just doesnt have a profile (eg Mekboy Workshop)
 
     local charHeadingString,charValueString = "[56f442]",""
     local currentChar = 1
     local woundTrack
 
-    if unit.woundTrack ~= nil then
-        if unit.woundTrack[modelProfile.name] ~= nil then
-            woundTrack = map(unit.woundTrack[modelProfile.name], |v| v) -- make it array-like
-        elseif len(unit.woundTrack) == 1 then
-            for _,wt in pairs(unit.woundTrack) do
+    if group.woundTrack ~= nil then
+        if group.woundTrack[gamePieceProfile.name] ~= nil then
+            woundTrack = map(group.woundTrack[gamePieceProfile.name], |v| v) -- make it array-like
+        elseif len(group.woundTrack) == 1 then
+            for _,wt in pairs(group.woundTrack) do
                 woundTrack = map(wt, |v| v)
             end
         end
     end
 
-    for heading,value in pairs(modelProfile) do
+    for heading,value in pairs(gamePieceProfile) do
         if heading ~= "name" then
             if value == "*" and woundTrack ~= nil then
                 value = woundTrack[1][currentChar]
@@ -1154,10 +1154,10 @@ function formatCharDesc(modelProfile, unit)
 
     charHeadingString = charHeadingString.."[-]\n"
 
-    return charHeadingString..charValueString.."[-][-]" -- the double brackets at the end helps us to update brakcets if the unit has them
+    return charHeadingString..charValueString.."[-][-]" -- the double brackets at the end helps us to update brakcets if the group has them
 end
 
--- formats the heading line for the characteristics section in a model's description
+-- formats the heading line for the characteristics section in a gamePiece's description
 -- the spacing is based on the values given so that they line up properly
 function formatHeading(heading, value)
     local spacing = value:gsub("\\",""):len()-heading:len()
@@ -1190,12 +1190,12 @@ function titlecase(s)
     return s:gsub("^(%w)", |a| a:upper())
 end
 
--- formats the string for the weapons section in a model's description
-function formatWeaponDesc(model, unit, needSpacingBefore)
-    if #model.weapons == 0 then return "" end
+-- formats the string for the weapons section in a gamePiece's description
+function formatWeaponDesc(gamePiece, group, needSpacingBefore)
+    if #gamePiece.weapons == 0 then return "" end
 
-    local rangedWeapons = filter(model.weapons, |weapon| unit.weapons[weapon.name].range:lower() ~= "melee")
-    local meleeWeapons = filter(model.weapons, |weapon| unit.weapons[weapon.name].range:lower() == "melee")
+    local rangedWeapons = filter(gamePiece.weapons, |weapon| group.weapons[weapon.name].range:lower() ~= "melee")
+    local meleeWeapons = filter(gamePiece.weapons, |weapon| group.weapons[weapon.name].range:lower() == "melee")
 
     local weapons = needSpacingBefore and "\n\n" or ""
 
@@ -1203,7 +1203,7 @@ function formatWeaponDesc(model, unit, needSpacingBefore)
         weapons = weapons .. "[e85545]Ranged weapons[-]"
 
         for _,weapon in pairs(rangedWeapons) do
-            weapons = weapons.."\n"..formatWeapon(unit.weapons[weapon.name], weapon.number)
+            weapons = weapons.."\n"..formatWeapon(group.weapons[weapon.name], weapon.number)
         end
     end
 
@@ -1212,14 +1212,14 @@ function formatWeaponDesc(model, unit, needSpacingBefore)
         weapons = weapons .. "[e85545]Melee weapons[-]"
 
         for _,weapon in pairs(meleeWeapons) do
-            weapons = weapons.."\n"..formatWeapon(unit.weapons[weapon.name], weapon.number)
+            weapons = weapons.."\n"..formatWeapon(group.weapons[weapon.name], weapon.number)
         end
     end
 
     return weapons
 end
 
--- formats the string for a weapon entry in a model's description
+-- formats the string for a weapon entry in a gamePiece's description
 function formatWeapon(weaponProfile, number)
     weaponName = number == 1 and weaponProfile.name or (number.."x "..weaponProfile.name)
     if edition == "10e" then
@@ -1257,19 +1257,19 @@ function formatWeapon(weaponProfile, number)
     end
 end
 
--- formats the string for the abilities section in a model's description
-function formatAbilityDesc(model, unit, needSpacingBefore)
-    if #model.abilities == 0 then return "" end
+-- formats the string for the abilities section in a gamePiece's description
+function formatAbilityDesc(gamePiece, group, needSpacingBefore)
+    if #gamePiece.abilities == 0 then return "" end
 
-    return ((needSpacingBefore or #model.weapons > 0) and "\n\n" or "").."[dc61ed]Abilities[-]\n"..table.concat(model.abilities, "\n")
+    return ((needSpacingBefore or #gamePiece.weapons > 0) and "\n\n" or "").."[dc61ed]Abilities[-]\n"..table.concat(gamePiece.abilities, "\n")
 end
 
 
-function formatPsychicDesc(model, unit)
-    if unit.powersKnown == nil or #unit.powersKnown == 0 then return "" end
+function formatPsychicDesc(gamePiece, group)
+    if group.powersKnown == nil or #group.powersKnown == 0 then return "" end
 
-    return ((needSpacingBefore or #model.weapons > 0 or #model.abilities > 0) and "\n\n" or "")..
-            "[5785fe]Psychic Powers[-]\n"..table.concat(map(unit.powersKnown, |power| interpolate(PSYCHIC_POWER_TEMPLATE, {
+    return ((needSpacingBefore or #gamePiece.weapons > 0 or #gamePiece.abilities > 0) and "\n\n" or "")..
+            "[5785fe]Psychic Powers[-]\n"..table.concat(map(group.powersKnown, |power| interpolate(PSYCHIC_POWER_TEMPLATE, {
                 name = power.name,
                 warpCharge = power.warpCharge,
                 range = power.range
@@ -1362,57 +1362,57 @@ end
 
 function getLoadedArmyXML(order)
     local xmlString = ""
-    local modelInUnitCount,modelDataForXML,currentUnitContainerHeight,totalUnitContainerHeight
-    local maxModelHeight,totalHeight = 0,0
+    local gamePieceInGroupCount,gamePieceDataForXML,currentGroupContainerHeight,totalGroupContainerHeight
+    local maxGamePieceHeight,totalHeight = 0,0
 
     for _,uuid in ipairs(order) do
-        local unit = army[uuid]
-        local modelGroupString,unitDataString = "",""
+        local group = army[uuid]
+        local gamePieceGroupString,groupDataString = "",""
 
-        modelInUnitCount = 0
-        currentUnitContainerHeight = 0
-        totalUnitContainerHeight = 50 -- name
+        gamePieceInGroupCount = 0
+        currentGroupContainerHeight = 0
+        totalGroupContainerHeight = 50 -- name
 
-        for modelID,model in pairs(unit.models.models) do
-            modelInUnitCount = modelInUnitCount + 1
-            modelDataForXML = getModelDataForXML(uuid, modelID, model, unit.weapons)
-            modelGroupString = modelGroupString..interpolate(uiTemplates.MODEL_CONTAINER, modelDataForXML)
+        for gamePieceID,gamePiece in pairs(group.gamePieces) do
+            gamePieceInGroupCount = gamePieceInGroupCount + 1
+            gamePieceDataForXML = getGamePieceDataForXML(uuid, gamePieceID, gamePiece, group.weapons)
+            gamePieceGroupString = gamePieceGroupString..interpolate(uiTemplates.MODEL_CONTAINER, gamePieceDataForXML)
 
-            if modelDataForXML.height > maxModelHeight then
-                maxModelHeight = modelDataForXML.height
-                currentUnitContainerHeight = modelDataForXML.height
+            if gamePieceDataForXML.height > maxGamePieceHeight then
+                maxGamePieceHeight = gamePieceDataForXML.height
+                currentGroupContainerHeight = gamePieceDataForXML.height
             end
 
-            if modelInUnitCount % 4 == 0 then
-                unitDataString = unitDataString..interpolate(uiTemplates.MODEL_GROUPING_CONTAINER, {
-                    modelGroups = modelGroupString,
+            if gamePieceInGroupCount % 4 == 0 then
+                groupDataString = groupDataString..interpolate(uiTemplates.MODEL_GROUPING_CONTAINER, {
+                    gamePieceGroups = gamePieceGroupString,
                     width = "1000",
-                    height = maxModelHeight
+                    height = maxGamePieceHeight
                 })
 
-                modelInUnitCount = 0
-                maxModelHeight = 0
-                modelGroupString = ""
-                totalUnitContainerHeight = totalUnitContainerHeight + currentUnitContainerHeight + 20 -- spacing
+                gamePieceInGroupCount = 0
+                maxGamePieceHeight = 0
+                gamePieceGroupString = ""
+                totalGroupContainerHeight = totalGroupContainerHeight + currentGroupContainerHeight + 20 -- spacing
             end
         end
 
-        if modelInUnitCount ~= 0 then
-            unitDataString = unitDataString..interpolate(uiTemplates.MODEL_GROUPING_CONTAINER, {
-                modelGroups = modelGroupString,
-                width = tostring(250 * modelInUnitCount),
-                height = maxModelHeight
+        if gamePieceInGroupCount ~= 0 then
+            groupDataString = groupDataString..interpolate(uiTemplates.MODEL_GROUPING_CONTAINER, {
+                gamePieceGroups = gamePieceGroupString,
+                width = tostring(250 * gamePieceInGroupCount),
+                height = maxGamePieceHeight
             })
-            maxModelHeight = 0
-            totalUnitContainerHeight = totalUnitContainerHeight + currentUnitContainerHeight
+            maxGamePieceHeight = 0
+            totalGroupContainerHeight = totalGroupContainerHeight + currentGroupContainerHeight
         end
 
-        totalHeight = totalHeight + totalUnitContainerHeight + 100 -- spacing
+        totalHeight = totalHeight + totalGroupContainerHeight + 100 -- spacing
 
         xmlString = xmlString..interpolate(uiTemplates.UNIT_CONTAINER, {
-            unitName = unit.decorativeName and unit.decorativeName or unit.name,
-            unitData = unitDataString,
-            height = totalUnitContainerHeight
+            groupName = group.decorativeName and group.decorativeName or group.name,
+            groupData = groupDataString,
+            height = totalGroupContainerHeight
         })
     end
 
@@ -1420,11 +1420,11 @@ function getLoadedArmyXML(order)
 end
 
 
-function getModelDataForXML(unitID, modelID, model, characteristicProfiles)
+function getGamePieceDataForXML(groupID, gamePieceID, gamePiece, characteristicProfiles)
     local weaponSection,abilitiesSection = "",""
     local totalCardHeight = 40 -- name
 
-    model.weapons = table.sort(model.weapons, function (weaponA,weaponB) --combine(model.weapons, model.assignedWeapons)
+    gamePiece.weapons = table.sort(gamePiece.weapons, function (weaponA,weaponB) --combine(gamePiece.weapons, gamePiece.assignedWeapons)
         if edition == "10e" then
             local rangeA = trim(characteristicProfiles[weaponA.name].range):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
             local rangeB = trim(characteristicProfiles[weaponB.name].range):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
@@ -1444,33 +1444,33 @@ function getModelDataForXML(unitID, modelID, model, characteristicProfiles)
         end
     end)
 
-    if model.weapons ~= nil and #model.weapons > 0 then
+    if gamePiece.weapons ~= nil and #gamePiece.weapons > 0 then
         weaponSection = interpolate(uiTemplates.MODEL_DATA, {
             dataType = "Weapons:",
-            data = table.concat(map(model.weapons,
+            data = table.concat(map(gamePiece.weapons,
                                     |weapon| weapon.number == 1 and weapon.name or (weapon.number.."x "..weapon.name))
                                 ,"\n"),
-            height = 37 * #model.weapons
+            height = 37 * #gamePiece.weapons
         })
-        totalCardHeight = totalCardHeight + (37 * #model.weapons) + (#model.abilities > 0 and 55 or 60) -- title and spacer
+        totalCardHeight = totalCardHeight + (37 * #gamePiece.weapons) + (#gamePiece.abilities > 0 and 55 or 60) -- title and spacer
     end
 
-    if #model.abilities > 0 then
+    if #gamePiece.abilities > 0 then
         abilitiesSection = interpolate(uiTemplates.MODEL_DATA, {
             dataType = "Abilities:",
-            data = table.concat(model.abilities, "\n"),
-            height = 37 * #model.abilities
+            data = table.concat(gamePiece.abilities, "\n"),
+            height = 37 * #gamePiece.abilities
         })
-        totalCardHeight = totalCardHeight + (37 * #model.abilities) + 60 -- title and spacer
+        totalCardHeight = totalCardHeight + (37 * #gamePiece.abilities) + 60 -- title and spacer
     end
 
     return {
-        modelName = model.name,
-        numberString = model.number > 1 and (tostring(model.number).."x ") or "",
+        gamePieceName = gamePiece.name,
+        numberString = gamePiece.number > 1 and (tostring(gamePiece.number).."x ") or "",
         weapons = weaponSection,
         abilities = abilitiesSection,
-        unitID = unitID,
-        modelID = modelID,
+        groupID = groupID,
+        gamePieceID = gamePieceID,
         height = totalCardHeight
     }
 end
@@ -1629,11 +1629,11 @@ function tableToString(t, delimiter, bracketsOnNewLine, extraTabbing, tabBeforeF
     return out.." }"
 end
 
-function removeModelByID(unitID, modelID)
-    loadedData[unitID].models.models[modelID] = nil
+function removeGamePieceByID(groupID, gamePieceID)
+    loadedData[groupID].gamePieces[gamePieceID] = nil
 end
 
-function sortModels(tbl, sortFunction)
+function sortGamePieces(tbl, sortFunction)
     local keys = {}
 
     for key in pairs(tbl) do
@@ -1655,11 +1655,11 @@ function uuid()
     end)
 end
 
-function removeModelByID(unitID, modelID)
-    loadedData[unitID].models.models[modelID] = nil
+function removeGamePieceByID(groupID, gamePieceID)
+    loadedData[groupID].gamePieces[gamePieceID] = nil
 end
 
-function sortModels(tbl, sortFunction)
+function sortGamePieces(tbl, sortFunction)
     local keys = {}
 
     for key in pairs(tbl) do
