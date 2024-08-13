@@ -769,7 +769,7 @@ function placeUnit(unit, startX, startZ, startY)
         -- I dont remember why I'm passing the data as an object instead of just as arguments
         local modelProfile = getProfileForModel(model, unit)
         local modelDescription = model.ttsDescription
-        local modelNickname = model.ttsNickname..getModelDisplayName(model, unit))
+        local modelNickname = model.ttsNickname..getModelDisplayName(model, unit)
         local modelTags = getModelTags(model, unit)
 
         local modelData = formatModelData(model.associatedModels,
