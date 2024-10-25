@@ -7,13 +7,13 @@
     <VerticalLayout class="panelContainer" childForceExpandHeight="false" childForceExpandWidth="false" childAlignment="MiddleCenter"
                     showAnimation="FadeIn" hideAnimation="FadeOut" animationDuration="0.2" />
     <VerticalLayout class="transparent" color="#ffffff00" />
-    <VerticalLayout class="modelContainer" shadow="Black" childForceExpandWidth="false" preferredWidth="400" onClick="selectModelGroup" padding="10" color="White" onMouseEnter="showAssociatedModel" onMouseExit="hideAssociatedModel" />
+    <VerticalLayout class="gamePieceContainer" shadow="Black" childForceExpandWidth="false" preferredWidth="400" onClick="selectGamePieceGroup" padding="10" color="White" onMouseEnter="showAssociatedGamePiece" onMouseExit="hideAssociatedGamePiece" />
     <Text alignment="UpperLeft" />
     <Text class="smallText" fontSize="18" horizontalOverflow="Overflow" />
-    <Text class="unitName" color="White" fontSize="48" alignment="MiddleCenter" resizeTextForBestFit="true" resizeTextMaxSize="48" />
-    <Text class="modelData" resizeTextForBestFit="true" resizeTextMaxSize="30" preferredWidth="500" horizontalOverflow="Overflow"  />
-    <Text class="modelDataTitle" fontSize="30" preferredWidth="500" fontStyle="Bold" horizontalOverflow="Overflow" />
-    <Text class="modelDataName" preferredWidth="500" preferredHeight="30" alignment="MiddleCenter" fontStyle="Bold" resizeTextForBestFit="true" resizeTextMaxSize="30" />
+    <Text class="groupName" color="White" fontSize="48" alignment="MiddleCenter" resizeTextForBestFit="true" resizeTextMaxSize="48" />
+    <Text class="gamePieceData" resizeTextForBestFit="true" resizeTextMaxSize="30" preferredWidth="500" horizontalOverflow="Overflow"  />
+    <Text class="gamePieceDataTitle" fontSize="30" preferredWidth="500" fontStyle="Bold" horizontalOverflow="Overflow" />
+    <Text class="gamePieceDataName" preferredWidth="500" preferredHeight="30" alignment="MiddleCenter" fontStyle="Bold" resizeTextForBestFit="true" resizeTextMaxSize="30" />
     <VerticalScrollView scrollSensitivity="40" />
     <HorizontalScrollView scrollSensitivity="40" />
     <Button class="unassignedWeapon" preferredHeight="24" flexibleWidth="1" resizeTextForBestFit="true" resizeTextMinSize="10" resizeTextMaxSize="18" />  <!--fontSize="18"-->
@@ -32,7 +32,7 @@
     <VerticalLayout id="welcomeWindow" class="panelContainer" padding="10 10 35 10" spacing="20" color="#e1e9a5" active="false" visibility="hidden">
         <VerticalLayout spacing="5" childAlignment="LowerCenter" height="200" childForceExpandHeight="false" childForceExpandWidth="false">
             <Text fontSize="40" fontStyle="Bold">Welcome to Yellowscribe v2!</Text>
-            <Text fontSize="20">To get started, upload your Battlescribe Roster file to yellowscribe.xyz</Text>
+            <Text fontSize="20">To get started, upload your Rosterizer or New Recruit Roster file to yellowscribe.xyz</Text>
             <Text fontSize="20" color="#FF0000">Do NOT go to yellowscribe.net - that site is dead now!</Text>
             <Text fontSize="20">Then enter the code you received below:</Text>
         </VerticalLayout>
