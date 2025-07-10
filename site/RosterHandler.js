@@ -137,7 +137,7 @@ function sendArmy(fileToUpload) {
 
         //$("header").addClass("loaded");
         clearNode(byID("errorContainer"), 0)
-
+        console.log(fileToUpload);
         formatArmy(fileToUpload);
     }
 }
@@ -148,6 +148,7 @@ function formatArmy(rosterFile) {
     on(oReq, "load", (e) => {
         if (oReq.status === 200) {
             armyData = JSON.parse(oReq.responseText);
+            console.log(armyData);
             loadArmy(armyData);
             submitButton.parentElement.classList.remove("hidden");
             showPage("rosterDisplay");
@@ -208,21 +209,21 @@ function clearNode(node, maxChildren = 1, fromFront = true) {
 function loadArmy(data) {
     let armyDisplay = new DocumentFragment();
 
-    if(data.appVersion) {
-        armyDisplay.append(...data.order.map(id => formatGroupDisplay(data.groups[id])));
+    if(data.app === "Rosterizer") {
+        armyDisplay.append(...data.order.map(id => formatRzDisplay(data.units[id])));
     }else{
         let sortedForUnassigned = Array.from(data.order);
         sortedForUnassigned.sort((idA, idB) => {
-            if (data.groups[idB].unassignedWeapons.length > 0 && data.groups[idB].unassignedWeapons.length === 0)
+            if (data.units[idB].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
                 return 1;
     
-            if (data.groups[idA].unassignedWeapons.length > 0 && data.groups[idB].unassignedWeapons.length === 0)
+            if (data.units[idA].unassignedWeapons.length > 0 && data.units[idB].unassignedWeapons.length === 0)
                 return -1;
     
             return 0; // both have unassigned
         });
     
-        armyDisplay.append(...sortedForUnassigned.map(id => formatUnitDisplay(data.groups[id])));
+        armyDisplay.append(...sortedForUnassigned.map(id => formatBsDisplay(data.units[id])));
     }
 
     const rosterDisplay = byID("rosterDisplayPage");
@@ -240,9 +241,9 @@ function loadArmy(data) {
 }
 
 function formatErrorDisplay(errors) {
-    let errorBox = byID("groupDisplayTemplate").content.cloneNode(true),
-        errorContainer = errorBox.querySelector(".gamePieceContainer"),
-        errorTitle = errorBox.querySelector(".groupName input");
+    let errorBox = byID("unitDisplayTemplate").content.cloneNode(true),
+        errorContainer = errorBox.querySelector(".modelContainer"),
+        errorTitle = errorBox.querySelector(".unitName input");
 
     errorBox.querySelector("section").dataset.uuid = "";
     errorTitle.value = "Errors/warnings";
@@ -262,26 +263,26 @@ function formatErrorDisplay(errors) {
     return errorBox;
 }
 
-function formatGroupDisplay(group) {
-    let groupDisplay = byID("groupDisplayTemplate").content.cloneNode(true),
-        gamePieceContainer = groupDisplay.querySelector(".gamePieceContainer"),
-        groupName = groupDisplay.querySelector(".groupName input");
+function formatRzDisplay(unit) {
+    let unitDisplay = byID("unitDisplayTemplate").content.cloneNode(true),
+        modelContainer = unitDisplay.querySelector(".modelContainer"),
+        unitName = unitDisplay.querySelector(".unitName input");
 
-    groupDisplay.querySelector("section").dataset.uuid = group.uuid;
-    groupName.value = group.name;
-    on(groupName, "input", (e) => group.name = e.target.value);
+    unitDisplay.querySelector("section").dataset.uuid = unit.uuid;
+    unitName.value = unit.name;
+    on(unitName, "input", (e) => unit.name = e.target.value);
 
-    if(group.type === "game piece"){
-        gamePieceContainer.appendChild(formatGamePieceDisplay(group.groupAsset, 1));
+    if(unit.type === "game piece"){
+        modelContainer.appendChild(formatmodelDisplay(unit.unitAsset, 1));
     }else{
         let assetDisplay;
-        let displayableAssets = group.groupAsset?.assets.filter((asset,i,a) => {
+        let displayableAssets = unit.unitAsset?.assets.filter((asset,i,a) => {
             return asset.assetDepth === 1 && asset.type !== 'game piece' && a[i+1]?.type !== 'game piece'
         });
         if(displayableAssets.length > 1) {
             assetDisplay = byID("assetGroupDisplayTemplate").content.cloneNode(true);
-            assetDisplay.querySelector("h3").innerHTML = group.groupClass;
-            group.groupAsset?.assets.forEach((asset,i,a) => {
+            assetDisplay.querySelector("h3").innerHTML = unit.unitClass;
+            unit.unitAsset?.assets.forEach((asset,i,a) => {
                 if(asset.assetDepth === 1 && asset.type !== 'game piece' && a[i+1]?.type !== 'game piece') {
                     if(asset.group){
                         assetDisplay.querySelector("h4").innerHTML = asset.group;
@@ -292,28 +293,28 @@ function formatGroupDisplay(group) {
                     }
                 }
             });
-            if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+            if(assetDisplay) modelContainer.appendChild(assetDisplay);
         }
-        if(assetDisplay) gamePieceContainer.appendChild(assetDisplay);
+        if(assetDisplay) modelContainer.appendChild(assetDisplay);
     
-        for (const gamePiece of Object.values(group.gamePieces || {}).flat())
-            gamePieceContainer.appendChild(formatGamePieceDisplay(gamePiece, 2));
+        for (const model of Object.values(unit.models || {}).flat())
+            modelContainer.appendChild(formatmodelDisplay(model, 2));
     }
 
-    return groupDisplay;
+    return unitDisplay;
 }
 
 
-function formatGamePieceDisplay(gamePiece, depth) {
-    let gamePieceDisplay = byID("gamePieceDisplayTemplate").content.cloneNode(true);
+function formatmodelDisplay(model, depth) {
+    let modelDisplay = byID("modelDisplayTemplate").content.cloneNode(true);
 
-    let gamePieceNode = gamePieceDisplay.querySelector(".gamePieceDisplay");
-    gamePieceDisplay.querySelector("h3").innerHTML = (gamePiece.quantity > 1 ? gamePiece.quantity + "&times; " : "") + gamePiece.name; 
+    let modelNode = modelDisplay.querySelector(".modelDisplay");
+    modelDisplay.querySelector("h3").innerHTML = (model.quantity > 1 ? model.quantity + "&times; " : "") + model.name; 
 
-    if(gamePiece.assets.length > 1){
+    if(model.assets.length > 1){
         let clusters = {};
         let groupName;
-        gamePiece.assets.forEach((asset,i) => {
+        model.assets.forEach((asset,i) => {
             if(i){
                 if(asset.group){
                     groupName = asset.group;
@@ -336,21 +337,21 @@ function formatGamePieceDisplay(gamePiece, depth) {
                 clusters[groupName].forEach(asset => {
                     let entry = document.createElement("li");
                     let indent = Math.max(asset.assetDepth - baseDepth);
-                    entry.innerHTML = '&nbsp;'.repeat(indent * 4) + (asset.quantity > 1 ? asset.quantity + "× " : "") + asset.name;
+                    entry.innerHTML = '&nbsp;'.repeat(indent * 4) + (asset.quantity > 1 ? asset.quantity + "&times; " : "") + asset.name;
                     assetList.append(entry);
                 });            
                 // Replace the existing ul with the newly created one
                 let existingUl = subAssetDisplay.querySelector("ul");
                 existingUl.replaceWith(assetList);
             }
-            gamePieceNode.appendChild(subAssetDisplay);
+            modelNode.appendChild(subAssetDisplay);
         });
     }
 
-    return gamePieceDisplay;
+    return modelDisplay;
 }
 
-function formatUnitDisplay(unit) {
+function formatBsDisplay(unit) {
     let unitDisplay = byID("unitDisplayTemplate").content.cloneNode(true),
         modelContainer = unitDisplay.querySelector(".modelContainer"),
         unitName = unitDisplay.querySelector(".unitName input");
@@ -382,7 +383,7 @@ function formatModelDisplay(model, unit) {
         for (const weapon of model.weapons) {
             let entry = document.createElement("li");
 
-            entry.innerHTML = (weapon.number > 1 ? weapon.number + "x " : "") + weapon.name;
+            entry.innerHTML = (weapon.number > 1 ? weapon.number + "&times; " : "") + weapon.name;
 
             weaponList.append(entry);
         }
@@ -394,7 +395,7 @@ function formatModelDisplay(model, unit) {
 
                 buttonContainer.append(...formatWeaponAssignmentButtons(false, weapon, model, unit, entry));
                 entry.className = "weaponUnassignmentContainer"
-                entry.innerHTML = (weapon.number > 1 ? weapon.number + "x " : "") + weapon.name;
+                entry.innerHTML = (weapon.number > 1 ? weapon.number + "&times; " : "") + weapon.name;
                 entry.append(buttonContainer);
 
                 weaponList.append(entry);

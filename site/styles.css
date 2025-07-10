@@ -297,24 +297,24 @@ ol ul {
     pointer-events: none!important;
 }
 
-.unitDisplay, .groupDisplay {
+.unitDisplay {
     background-color: #999;
     width: 100%;
     padding-bottom: 4px;
 }
 
-.unitDisplay:not(:last-of-type), .groupDisplay:not(:last-of-type) {
+.unitDisplay:not(:last-of-type) {
     margin-bottom: 20px;
 }
 
-.unitName, .groupName {
+.unitName {
     margin: 0;
     margin-bottom: 0;
     height: 40px;
     width: 100%;
 }
 
-.unitName input, .groupName input {
+.unitName input {
     width: 100%;
     height: 100%;
     font-size: 28px;
@@ -322,24 +322,24 @@ ol ul {
     text-align: center;
 }
 
-.modelContainer, .gamePieceContainer {
+.modelContainer {
     display: flex;
     overflow-x: auto;
     max-width: 100%;
 }
-.gamePieceContainer > .assetDisplay {
+.modelContainer > .assetDisplay {
     background-color: #fff;
     padding: 10px;
     margin-right: 7px;
     white-space: nowrap;
 }
 
-.modelContainer:before, .modelContainer:after, .gamePieceContainer:before, .gamePieceContainer:after {
+.modelContainer:before, .modelContainer:after {
     content:'';
     flex:1;
 }
 
-.modelDisplay, .gamePieceDisplay {
+.modelDisplay {
     background: #fffdad;
     padding: 10px;
     min-width: 300px;
@@ -347,23 +347,23 @@ ol ul {
     flex-direction: column;
 }
 
-.modelDisplay:not(:last-of-type), .gamePieceDisplay:not(:last-of-type) {
+.modelDisplay:not(:last-of-type) {
     margin-right: 7px;
 }
 
-.modelDisplay section:not(:last-of-type), .gamePieceDisplay section:not(:last-of-type) {
+.modelDisplay section:not(:last-of-type) {
     margin-bottom: 20px;
 }
 
-.modelDisplay h3, .gamePieceDisplay h3, .assetDisplay h3 {
+.modelDisplay h3, .assetDisplay h3 {
     margin-top: 0;
 }
 
-.modelDisplay h4, .gamePieceDisplay h4, .assetDisplay h4 {
+.modelDisplay h4, .assetDisplay h4 {
     margin: 0;
 }
 
-.modelDisplay ul, .gamePieceContainer ul {
+.modelContainer ul {
     list-style: none;
     margin: 4px 0;
     padding-left: 15px;

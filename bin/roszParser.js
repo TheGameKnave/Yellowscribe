@@ -61,7 +61,7 @@ function parse10eRoster(rosz, wargearAllocationMode, decorativeNames) {
         if (force.selections && force.selections[0]) {
             for (const selection of force.selections[0].selection) {
                 if (selection.$.type == "unit" || selection.$.type == "model") {
-                    rosterYs.addGroup(parseUnit(selection, rosterYs));
+                    rosterYs.addUnit(parseUnit(selection, rosterYs));
                 }
             }
         }
@@ -130,26 +130,26 @@ function parseUnit(selection, rosterYs) {
                           // to fit the new data model. TODO: streamline this by someone who knows it better.
 
     
-    // make groupAsset
-    let groupAsset = new DataModel.Asset(
+    // make unitAsset
+    let unitAsset = new DataModel.Asset(
         selection.$.name,
-        selection.$.type === "model" ? "game piece" : "group",
+        selection.$.type === "game piece" ? "game piece" : "unit",
     );
-    groupAsset.assetDepth = 0;
-    // keyword and text for groupAsset
-    if(unit.factionKeywords.size) groupAsset.addKeyword('Faction', Array.from(unit.factionKeywords));
-    if(unit.keywords.size) groupAsset.addKeyword('Keywords', Array.from(unit.keywords));
-    if(selection.$.desc) groupAsset.setText(selection.$.desc);
+    unitAsset.assetDepth = 0;
+    // keyword and text for unitAsset
+    if(unit.factionKeywords.size) unitAsset.addKeyword('Faction', Array.from(unit.factionKeywords));
+    if(unit.keywords.size) unitAsset.addKeyword('Keywords', Array.from(unit.keywords));
+    if(selection.$.desc) unitAsset.setText(selection.$.desc);
 
-    // make group
-    let group = new DataModel.Group(
-        // name, type, groupClass, groupAsset,
+    // make unit
+    unit = new DataModel.Unit(
+        // name, type, unitClass, unitAsset,
         selection.$.name,
-        selection.$.type === "model" ? "game piece" : "group",
+        selection.$.type === "game piece" ? "game piece" : "unit",
         "Unit",
-        groupAsset,
+        unitAsset,
     );
-    group.meta = {
+    unit.meta = {
         ttsDamageStat: "W",
         ttsCoherency: "2,5,5",
     }
@@ -157,21 +157,21 @@ function parseUnit(selection, rosterYs) {
     // if single-model: stats
     if(selection.$.type == "model") {
         Object.entries(unit.modelProfiles.get(unit.name) || {}).forEach(([statKey,statValue],i) => {
-            if(i) groupAsset.stats[statKey] = statValue;
+            if(i) unitAsset.stats[statKey] = statValue;
         });
     }
-    // flat-map groupAsset copy AND sub-assets (abilities) into groupAsset.assets
-    let groupAssetZero = JSON.parse(Helpers.serialize(groupAsset));
-    groupAsset.assets.push(groupAssetZero);
-    if(unit.abilities.size) groupAsset.assets.push(new DataModel.AssetGroup('Abilities', groupAsset.assetDepth + 1));
+    // flat-map unitAsset copy AND sub-assets (abilities) into unitAsset.assets
+    let unitAssetZero = JSON.parse(Helpers.serialize(unitAsset));
+    unitAsset.assets.push(unitAssetZero);
+    if(unit.abilities.size) unitAsset.assets.push(new DataModel.AssetGroup('Abilities', unitAsset.assetDepth + 1));
     for(const [name, ability] of unit.abilities) {
         let asset = new DataModel.Asset(
             ability.name,
             "conceptual",
         );
-        asset.assetDepth = groupAsset.assetDepth + 1;
+        asset.assetDepth = unitAsset.assetDepth + 1;
         asset.setText(ability.desc);
-        groupAsset.addAsset(asset);
+        unitAsset.addAsset(asset);
     }
     // if multi-model:
     if(selection.$.type == "unit") {
@@ -180,9 +180,9 @@ function parseUnit(selection, rosterYs) {
                 model.name,
                 "game piece",
             );
-            asset.assetDepth = groupAsset.assetDepth + 1;
+            asset.assetDepth = unitAsset.assetDepth + 1;
             asset.quantity = model.number || 1;
-            asset.meta = {ttsPartOfGroup: true, ...group.meta};
+            asset.meta = {ttsPartOfUnit: true, ...unit.meta};
             if(model.desc) asset.setText(model.desc);
             //   parse and stat each asset as a game piece
             let profile = unit.modelProfiles.get(model.name) || unit.modelProfiles.get(unit.name) || {};
@@ -219,20 +219,20 @@ function parseUnit(selection, rosterYs) {
                     })
                 }
             });
-            //   populate gamePieces in group
-            asset.createDescription(group);
-            group.addGamePiece(asset);
-            //   append model sub-assets to groupAsset.assets
-            groupAsset.assets.push(...asset.assets);
+            //   populate models in unit
+            asset.createDescription(unit);
+            unit.addmodel(asset);
+            //   append model sub-assets to unitAsset.assets
+            unitAsset.assets.push(...asset.assets);
         }
     }else if(selection.$.type == "model") {
-        if(unit.weapons.size) groupAsset.assets.push(new DataModel.AssetGroup('Weapons', groupAsset.assetDepth + 1));
+        if(unit.weapons.size) unitAsset.assets.push(new DataModel.AssetGroup('Weapons', unitAsset.assetDepth + 1));
         unit.weapons.forEach(weapon => {
             let subAsset = new DataModel.Asset(
                 weapon.name,
                 "conceptual",
             );
-            subAsset.assetDepth = groupAsset.assetDepth + 1;
+            subAsset.assetDepth = unitAsset.assetDepth + 1;
             subAsset.quantity = weapon.number || 1;
             let weaponData = unit.weapons.get(weapon.name);
             Object.entries(weaponData || {}).forEach(([statKey,statValue],i) => {
@@ -244,8 +244,8 @@ function parseUnit(selection, rosterYs) {
                     subAsset.stats[statName] = statValue;
                 }
             });
-            groupAsset.addAsset(subAsset);
-            groupAsset.meta = group.meta;
+            unitAsset.addAsset(subAsset);
+            unitAsset.meta = unit.meta;
             if(weapon.abilities?.size){
                 subAsset.assets.push(new DataModel.AssetGroup('Abilities', subAsset.assetDepth + 1));
                 weapon.abilities.forEach(ability => {
@@ -254,9 +254,9 @@ function parseUnit(selection, rosterYs) {
                 })
             }
         });
-        group.groupAsset.createDescription(group);
+        unit.unitAsset.createDescription(unit);
     }
-    return group;
+    return unit;
 }
 
 class ModelCharacteristics {
@@ -370,7 +370,7 @@ function parseAndAddUnitSelection(selection, unit) {
                 case "Melee Weapons":
                 case "Ranged Weapons":
                     let weapon = parseWeapon(profile, 1);
-                    if (selection.$.from && selection.$.from == "group") {
+                    if (selection.$.from && selection.$.from == "unit") {
                         unit.addAllModelsWeapon(weapon);
                     } else {
                         unit.addUnassignedWeapon(weapon);
@@ -379,7 +379,7 @@ function parseAndAddUnitSelection(selection, unit) {
 
                 case "Abilities":
                     let ability = parseAbility(profile);
-                    if (selection.$.from && selection.$.from == "group") {
+                    if (selection.$.from && selection.$.from == "unit") {
                         unit.addAbility(ability);
                     } else {
                         unit.addUnassignedAbility(ability);

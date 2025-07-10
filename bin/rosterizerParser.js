@@ -39,9 +39,9 @@ function parseRegistry(registry, decorativeNames = false) {
     );
     Object.entries(registry.meta).forEach(([key, value]) => rosterYs.addMeta(key, value));
     let registryParents = findParents(deepCopyObj(registry));
-    discoverChildGamePieces(rosterYs, registryParents);
-    discoverGroups(rosterYs, registryParents);
+    discoverUnits(rosterYs, registryParents);
     rosterYs.errors = registryParents.errors.map(error => error.name + ': ' + error.message);
+    // console.log(rosterYs);
     return rosterYs;
 }
 
@@ -55,70 +55,74 @@ function findParents(asset) {
     });
     return asset;
 }
-function discoverChildGamePieces(rosterYs, asset) {
-    ['traits','included'].forEach(division => {
-      for (let subAsset of asset.assets[division]) {
-        if (subAsset.aspects.Type === 'game piece' && (!asset.parent || !subAsset.meta?.ttsPartOfGroup)) {
-            rosterYs.addGroup(parseGamePiece(subAsset, require('crypto').randomBytes(4).toString('hex')));
-        }
-        discoverChildGamePieces(rosterYs, subAsset);
-      }
-    });
-}
-function parseGamePiece(asset, uuid) {
-    let groupAsset = recurseAsset(asset);
-    let group = new Model.Group(
+function parsemodel(asset, uuid) {
+    let unitAsset = recurseAsset(asset);
+    let unit = new Model.Unit(
         asset.name ? `${asset.name} (${asset.aspects?.Label || asset.designation})` : (asset.aspects?.Label || asset.designation),
         'game piece',
         asset.classification,
-        groupAsset,
+        unitAsset,
     );
-    group.meta = asset.meta;
+    unit.meta = asset.meta;
     
-    group.groupAsset.createDescription(group);
-    return group;
+    unit.unitAsset.createDescription(unit);
+    return unit;
 }
-function discoverGroups(rosterYs, asset) {
-    let hasChildGamePieces = false;
+function discoverUnits(rosterYs, asset, isInUnit = false) {
+    let hasChildmodels = false;
+    let isUnit = false;
+    // console.log('discoverUnits',asset.item);
     ['traits','included'].forEach(division => {
+      console.log('checking', division, 'of', asset.item);
         for (let subAsset of asset.assets?.[division]) {
-            if (subAsset.aspects.Type === 'game piece' && subAsset.meta?.ttsPartOfGroup) {
-                hasChildGamePieces = true;
+            if (subAsset.aspects.Type === 'game piece' && subAsset.meta?.ttsPartOfUnit) {
+                hasChildmodels = true;
+                isUnit = true;
             }
-            discoverGroups(rosterYs, subAsset);
+            discoverUnits(rosterYs, subAsset, isUnit);
         }
     });
-    if (hasChildGamePieces && asset.parent) {
-        rosterYs.addGroup(parseGroup(asset, require('crypto').randomBytes(4).toString('hex')));
+    if (hasChildmodels && asset.parent && !isInUnit) {
+        console.log('Adding unit', asset.item);
+        rosterYs.addUnit(parseUnit(asset, require('crypto').randomBytes(4).toString('hex')));
+    }else{
+        ['traits','included'].forEach(division => {
+            for (let subAsset of asset.assets?.[division]) {
+                if (subAsset.aspects.Type === 'game piece' && (!asset.parent || !subAsset.meta?.ttsPartOfUnit)) {
+                    console.log('Adding model', subAsset.item);
+                    rosterYs.addUnit(parsemodel(subAsset, require('crypto').randomBytes(4).toString('hex')));
+                }
+            }
+        });
     }
 }
 
 
-function parseGroup(asset, uuid) {
-    let groupAsset = recurseAsset(asset);
-    let group = new Model.Group(
+function parseUnit(asset, uuid) {
+    let unitAsset = recurseAsset(asset);
+    let unit = new Model.Unit(
         asset.name ? `${asset.name} (${asset.aspects?.Label || asset.designation})` : (asset.aspects?.Label || asset.designation),
-        'group',
+        'unit',
         asset.classification,
-        groupAsset,
+        unitAsset,
     );
-    group.meta = asset.meta;
-    let gamePieces = [];
+    unit.meta = asset.meta;
+    let models = [];
     ['traits','included'].forEach(division => {
         asset.assets?.[division].filter(asset => asset.aspects.Type === 'game piece').forEach((subAsset,i,a) => {
-            gamePieces.push(recurseAsset(subAsset, 1));
+            models.push(recurseAsset(subAsset, 1));
         });
     });
-    gamePieces.forEach(gamePiece => {
-        gamePiece.createDescription(group);
+    models.forEach(model => {
+        model.createDescription(unit);
     });
-    // make object from gamePieces array to group.gamePieces object with uid keys
-    group.gamePieces = gamePieces.reduce((obj, gamePiece) => {
+    // make object from models array to unit.models object with uid keys
+    unit.models = models.reduce((obj, model) => {
       const uuid = require('crypto').randomBytes(8).toString('hex');
-      obj[uuid] = { ...obj[uuid], ...gamePiece };
+      obj[uuid] = { ...obj[uuid], ...model };
       return obj;
     }, {});
-    return group
+    return unit
 }
 
 function recurseAsset(asset, depth = 0) {

@@ -117,8 +117,8 @@ local uiTemplates = {
 
     -- Button Section for the Asset -->
     -- this is here and not in xml because we have to provide the guid, otherwise it will try and run on Global
-    highlightButton = [[<Button padding="3 3 3 3" preferredHeight="20" preferredWidth="\${width}" color="#\${colorValue}" onClick="\${guid}/highlightGroup(\${colorName})"></Button>]],
-    unhighlightButton = [[<Button padding="3 3 3 3" preferredHeight="20" preferredWidth="\${width}" color="#BBBBBB" onClick="\${guid}/unhighlightGroup"></Button>]]
+    highlightButton = [[<Button padding="3 3 3 3" preferredHeight="20" preferredWidth="\${width}" color="#\${colorValue}" onClick="\${guid}/highlightUnit(\${colorName})"></Button>]],
+    unhighlightButton = [[<Button padding="3 3 3 3" preferredHeight="20" preferredWidth="\${width}" color="#BBBBBB" onClick="\${guid}/unhighlightUnit"></Button>]]
 }
 
 
@@ -195,19 +195,19 @@ function onLoad(savedState)
             loadDefaultValues()
         end
 
-        setContextMenuItemsForGroup()
+        setContextMenuItemsForUnit()
 
         --Wait.frames(function () buildUI() end, 2)
-        if groupData.meta ~= nil and groupData.meta.ttsCoherency ~= nil then
+        if unitData.meta ~= nil and unitData.meta.ttsCoherency ~= nil then
             -- if coherency has a comma, split it up and assign to orthogonal and vertical
-            if groupData.meta.ttsCoherency:find(",") then
-                local coherency = mysplit(groupData.meta.ttsCoherency,",")
+            if unitData.meta.ttsCoherency:find(",") then
+                local coherency = mysplit(unitData.meta.ttsCoherency,",")
                 orthogonalCoherency = tonumber(coherency[1]) or 999
                 verticalCoherency = tonumber(coherency[2]) or 999
                 coherencyThreshold = tonumber(coherency[3]) or 999
             else
-                orthogonalCoherency = tonumber(groupData.meta.ttsCoherency) or 999
-                verticalCoherency = tonumber(groupData.meta.ttsCoherency) or 999
+                orthogonalCoherency = tonumber(unitData.meta.ttsCoherency) or 999
+                verticalCoherency = tonumber(unitData.meta.ttsCoherency) or 999
                 coherencyThreshold = 999
             end
             Wait.frames(function ()
@@ -216,12 +216,12 @@ function onLoad(savedState)
         end
     else
         local newUUID = randomString(8)
-        for _,model in ipairs(getObjectsWithTag("uuid:"..groupData.uuid)) do
-            model.removeTag("uuid:"..groupData.uuid)
+        for _,model in ipairs(getObjectsWithTag("uuid:"..unitData.uuid)) do
+            model.removeTag("uuid:"..unitData.uuid)
             model.addTag("uuid:"..newUUID)
             model.setVar("hasLoaded", true)
         end
-        groupData.uuid = newUUID
+        unitData.uuid = newUUID
     end
 end
 
@@ -232,8 +232,8 @@ function onScriptingButtonDown(index, playerColor)
     local player = Player[playerColor]
     local hoveredObject = player.getHoverObject()
 
-    -- if the hovered object has a matching groupID, then it is part of this model's group and thus is a valid target
-    local isHoveringValidTarget = hoveredObject ~= nil and hoveredObject.hasTag("uuid:"..groupData.uuid)
+    -- if the hovered object has a matching unitID, then it is part of this model's unit and thus is a valid target
+    local isHoveringValidTarget = hoveredObject ~= nil and hoveredObject.hasTag("uuid:"..unitData.uuid)
 
     if isHoveringValidTarget then scriptingFunctions[index](playerColor, hoveredObject, player) end
 end
@@ -243,8 +243,8 @@ function onObjectDrop(playerColor, droppedObject)
     if not self.hasTag("leaderModel") then return end -- prevents firing on objects we don't want firing
     if isCurrentlyCheckingCoherency and
         droppedObject ~= nil and
-        groupData ~= nil and
-        droppedObject.hasTag("uuid:"..groupData.uuid) then
+        unitData ~= nil and
+        droppedObject.hasTag("uuid:"..unitData.uuid) then
             Wait.frames(function ()
                 droppedObject.setLock(true)
                 -- wait a frame for locking to cancel momentum
@@ -261,7 +261,7 @@ function onObjectRotate(object, spin, flip, playerColor, oldSpin, oldFlip)
     if not self.hasTag("leaderModel") then return end -- prevents firing on objects we don't want firing
     if isCurrentlyCheckingCoherency and
         flip ~= oldFlip and  -- update on model flip
-        object.hasTag("uuid:"..groupData.uuid) then
+        object.hasTag("uuid:"..unitData.uuid) then
         -- wait for a bit, otherwise the model will still be considered face down when its flipped face up and vice versa
         Wait.time(|| highlightCoherency(), 0.3)
     end
@@ -271,21 +271,21 @@ end
 function onPlayerAction(player, action, targets)
     if not self.hasTag("leaderModel") then return end -- prevents firing on objects we don't want firing
     if action == Player.Action.Paste then
-        local groupTag = "uuid:"..groupData.uuid
+        local unitTag = "uuid:"..unitData.uuid
         for _,object in ipairs(targets) do
-            if object.hasTag(groupTag) and object.hasTag("leaderModel") then
+            if object.hasTag(unitTag) and object.hasTag("leaderModel") then
                 object.setLuaScript("")
                 object.removeTag("leaderModel")
             end
         end
     elseif action == Player.Action.Delete then
-        local groupTag = "uuid:"..groupData.uuid
+        local unitTag = "uuid:"..unitData.uuid
         for _,object in ipairs(targets) do
             if object == self then
-                local modelsInGroup = getObjectsWithTag(groupTag)
-                local modelsInGroupNotBeingDeleted = filter(modelsInGroup, |model| not includes(targets, model))
-                if #modelsInGroupNotBeingDeleted >= 1 then
-                    local newLeader = modelsInGroupNotBeingDeleted[1]
+                local modelsInUnit = getObjectsWithTag(unitTag)
+                local modelsInUnitNotBeingDeleted = filter(modelsInUnit, |model| not includes(targets, model))
+                if #modelsInUnitNotBeingDeleted >= 1 then
+                    local newLeader = modelsInUnitNotBeingDeleted[1]
                     updateEventHandlers(newLeader.getGUID())
 
                     Wait.frames(function ()
@@ -305,10 +305,10 @@ end
 function onObjectSpawn(object)
     if not self.hasTag("leaderModel") then return end -- prevents firing on objects we don't want firing
 
-    if object ~= self and object.hasTag("leaderModel") and object.hasTag("uuid:"..groupData.uuid) then
+    if object ~= self and object.hasTag("leaderModel") and object.hasTag("uuid:"..unitData.uuid) then
         object.removeTag("leaderModel")
         object.setLuaScript("")
-        --[[ local groupModels = getObjectsWithTag("uuid:"..groupData.uuid)
+        --[[ local groupModels = getObjectsWithTag("uuid:"..unitData.uuid)
 
         for _,model in ipairs(groupModels) do
             if model ~= object and model.hasTag("leaderModel") then
@@ -385,7 +385,7 @@ function showCard(cardName, playerColor)
     Wait.frames(function ()
         local globalUI = Global.UI.getXmlTable()
         local selfUI = self.UI.getXmlTable()
-        local formattedCardName = "ymc-"..cardName.."-"..groupData.uuid.."-"..playerColor
+        local formattedCardName = "ymc-"..cardName.."-"..unitData.uuid.."-"..playerColor
         local shownYet = false
 
         -- yes, I know we go through the table twice, I don't like it
@@ -421,7 +421,7 @@ function hideCard(player, card)
 
     if (player.color:find("^%w+$")) == nil then playerColor = "Grey" end
 
-    local formattedCardName = "ymc-"..card.."-"..groupData.uuid.."-"..playerColor
+    local formattedCardName = "ymc-"..card.."-"..unitData.uuid.."-"..playerColor
     -- broadcastToAll("Hiding "..formattedCardName)
 
     Global.UI.setAttribute(formattedCardName, "visibility", "None")
@@ -454,19 +454,19 @@ end
 
 local dataCardHeight = 0
 function buildUI()
-    self.UI.setAttribute("ym-container", "group-id", groupData.uuid)
+    self.UI.setAttribute("ym-container", "unit-id", unitData.uuid)
 
-    self.UI.setValue("data-groupName", groupData.groupName)
+    self.UI.setValue("data-unitName", unitData.name)
 
     -- Iterate through the flat assets array and process each asset
     local populatedSection = ""
-    for i, asset in ipairs(groupData.groupAsset.assets) do
+    for i, asset in ipairs(unitData.unitAsset.assets) do
         -- Populate the template based on the asset data
         populatedSection = populatedSection .. populateTemplate(asset,i)
 
     end
     -- Populate the attribution line
-    populatedSection = populatedSection .. interpolate(uiTemplates.attribution, { game = groupData.game, edition = groupData.edition, rulebook = groupData.rulebook, version = groupData.version, hash = groupData.hash })
+    populatedSection = populatedSection .. interpolate(uiTemplates.attribution, { game = unitData.game, edition = unitData.edition, rulebook = unitData.rulebook, version = unitData.version, hash = unitData.hash })
     dataCardHeight = dataCardHeight + 40
     -- Insert the populated section into dataCardContentContainer
     self.UI.setValue("dataCardContentContainer", populatedSection)
@@ -498,7 +498,7 @@ function populateTemplate(asset,i)
 
         -- Check if the lowercase asset group name contains one of the keywords
         local color = ""
-        if assetGroup:find("combat") or assetGroup:find("attack") or assetGroup:find("weapon") then
+        if assetGroup:find("combat") or assetGroup:find("attack") or assetGroup:find("weapon") then @@@@@
             color = "ff6666"
         else
             color = "ccaaff"
@@ -570,7 +570,7 @@ function populateTemplate(asset,i)
             local assetNameColor = "fafafa"
             local fontStyle = "Bold"
             -- if no asset stats AND the next asset (if it exists) is not a lower assetDepth, use 88ccaa
-            if (asset.stats == nil or not next(asset.stats)) and (groupData.groupAsset.assets[i+1] == nil or asset.assetDepth >= groupData.groupAsset.assets[i+1].assetDepth) then
+            if (asset.stats == nil or not next(asset.stats)) and (unitData.unitAsset.assets[i+1] == nil or asset.assetDepth >= unitData.unitAsset.assets[i+1].assetDepth) then
                 assetNameColor = "88ccaa"
                 fontStyle = "Normal"
             end
@@ -583,14 +583,14 @@ function populateTemplate(asset,i)
     return template
 end
 
-function setContextMenuItemsForGroup()
+function setContextMenuItemsForUnit()
     local hasLoaded = self.getVar("hasLoaded")
     if hasLoaded == nil or not hasLoaded then
-        local group = getObjectsWithTag("uuid:"..groupData.uuid)
-        local isSingleModel = groupData.gamePieces == nil
+        local unit = getObjectsWithTag("uuid:"..unitData.uuid)
+        local isSingleModel = unitData.models == nil
 
-        if not isSingleModel and #group > 1 then
-            for _,model in ipairs(group) do
+        if not isSingleModel and #unit > 1 then
+            for _,model in ipairs(unit) do
                 model.addContextMenuItem("Toggle Coherency ✓", toggleCoherencyChecking)
             end
         end
@@ -612,15 +612,15 @@ end
 --[[ HIGHLIGHTING FUNCTIONS ]]--
 
 
-function highlightGroup(player, color)
-    for _,model in pairs(getObjectsWithTag("uuid:"..groupData.uuid)) do
+function highlightUnit(player, color)
+    for _,model in pairs(getObjectsWithTag("uuid:"..unitData.uuid)) do
         model.highlightOn(color)
         model.setVar("currentHighlightColor", color)
     end
 end
 
-function unhighlightGroup()
-    for _,model in pairs(getObjectsWithTag("uuid:"..groupData.uuid)) do
+function unhighlightUnit()
+    for _,model in pairs(getObjectsWithTag("uuid:"..unitData.uuid)) do
         model.highlightOff()
         model.setVar("currentHighlightColor", nil)
     end
@@ -631,7 +631,7 @@ end
 
 
 
---[[ GROUP COHERENCY FUNCTIONS ]]--
+--[[ UNIT COHERENCY FUNCTIONS ]]--
 
 function toggleCoherencyChecking(playerColor)
     isCurrentlyCheckingCoherency = not isCurrentlyCheckingCoherency
@@ -639,23 +639,23 @@ function toggleCoherencyChecking(playerColor)
     if isCurrentlyCheckingCoherency then
         highlightCoherency()
         if playerColor ~= nil then
-            broadcastToColor("Checking coherency for "..groupData.groupName, playerColor, playerColor)
+            broadcastToColor("Checking coherency for "..unitData.name, playerColor, playerColor)
         end
     else
         local oldHighlight = self.getVar("currentHighlightColor")
 
         if oldHighlight == nil then
-            unhighlightGroup()
+            unhighlightUnit()
         else
-            highlightGroup(nil, oldHighlight)
+            highlightUnit(nil, oldHighlight)
         end
 
-        broadcastToColor("No longer checking coherency for "..groupData.groupName, playerColor, playerColor)
+        broadcastToColor("No longer checking coherency for "..unitData.name, playerColor, playerColor)
     end
 end
 
 function highlightCoherency()
-    local modelsInGroup = getObjectsWithTag("uuid:"..groupData.uuid)
+    local modelsInGroup = getObjectsWithTag("uuid:"..unitData.uuid)
     local filteredGroups = {}
 
     for _,model in ipairs(modelsInGroup) do
@@ -926,8 +926,8 @@ function map(t, mapFunc)
 end
 
 
-function getGroupData() -- allow external TTS mods to access yellowscribe information
-    return groupData
+function getUnitData() -- allow external TTS mods to access yellowscribe information
+    return unitData
 end
 
 
@@ -936,9 +936,9 @@ function incrementColor(target)
     local nextColor = getNextColor(currentColor)
 
     if nextColor ~= nil then
-        highlightGroup(nil, nextColor)
+        highlightUnit(nil, nextColor)
     else
-        unhighlightGroup()
+        unhighlightUnit()
     end
 end
 

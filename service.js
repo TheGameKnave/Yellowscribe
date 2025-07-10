@@ -11,7 +11,7 @@ const Helpers = require("./bin/helpers");
 const ttsScript = require("./bin/ttsScript");
 
 
-const TEN_MINUTES = 600000,
+const TEN_MINUTES = 10 * 10 * 60 * 1000,
     PATH_PREFIX = "files/",
     FILE_NAME_REGEX = /(?<name>.+?)(?=.json)/,
 
@@ -103,6 +103,10 @@ const file = new statik.Server('./site'),
                 } else if (postURL.pathname === "/getArmyCode") {
                     try {
                         let armyData = JSON.parse(buf.toString());
+                        // support translating old YS model for legacy support)
+                        if(!armyData.app){
+                            armyData = updateModel(armyData)
+                        }
 
                         sendHTTPResponse(res, `{ "code": "${uuid}" }`, 200);
 
@@ -117,7 +121,7 @@ const file = new statik.Server('./site'),
                             armyData.appVersion,
                             armyData.hash,
                             armyData.order,
-                            armyData.groups,
+                            armyData.units,
                             postURL.searchParams.get('uiHeight'),
                             postURL.searchParams.get('uiWidth'),
                             postURL.searchParams.get('decorativeNames'),
@@ -167,7 +171,7 @@ const file = new statik.Server('./site'),
                             armyDataObj.edition,
                             armyDataObj.appVersion,
                             armyDataObj.order,
-                            armyDataObj.units || armyDataObj.groups,
+                            armyDataObj.units,
                             uiHeight,
                             uiWidth,
                             decorativeNames,

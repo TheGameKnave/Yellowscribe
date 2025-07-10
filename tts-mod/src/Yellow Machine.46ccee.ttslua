@@ -46,7 +46,7 @@ require("vscode/console")
 
 local DEBUG = true
 
-local loadedData, loadedDataOrder, originalLoadedOrder, edition, uiHeight, uiWidth, useDecorativeNames, armyDisplay, armyText
+local loadedData, loadedDataOrder, originalLoadedOrder, edition, uiHeight, uiWidth, useDecorativeNames, armyDisplay, armyText, game, dataSet, app, appVersion, hash
 local url = DEBUG and "http://localhost:3000/get_army_by_id?id=" or "https://yellowscribe.xyz/get_army_by_id?id="
 
 local uiTemplates = {
@@ -56,15 +56,14 @@ local uiTemplates = {
                                 ${groupData}
                             </VerticalLayout>
                         </VerticalLayout> ]],
-    GAMEPIECE_CONTAINER = [[<VerticalLayout preferredWidth="500" childForceExpandHeight="false" class="gamePieceContainer" id="${groupID}|${gamePieceID}" preferredHeight="${height}">
-                            <Text class="gamePieceDataName">${numberString}${gamePieceName}</Text>
-                            ${weapons}
-                            ${abilities}
+    MODEL_CONTAINER = [[<VerticalLayout preferredWidth="500" childForceExpandHeight="false" class="modelContainer" id="${unitID}|${modelID}" preferredHeight="${height}">
+                            <Text class="modelDataName" preferredHeight="55">${qtyString}${modelName}</Text>
+                            ${assets}
                         </VerticalLayout> ]],
-    GAMEPIECE_DATA = [[ <VerticalLayout childForceExpandHeight="false" childForceExpandWidth="false">
+    MODEL_DATA = [[ <VerticalLayout childForceExpandHeight="false" childForceExpandWidth="false" class="modelData">
                         <Text height="15"><!-- spacer --></Text>
-                        <Text class="gamePieceDataTitle">${dataType}</Text>
-                        <Text class="gamePieceData" preferredHeight="${height}">${data}</Text>
+                        <Text class="modelData" preferredHeight="40"><b>${dataType}</b></Text>
+                        <Text class="modelData" preferredHeight="${height}">${data}</Text>
                     </VerticalLayout> ]],
 
     GAMEPIECE_GROUPING_CONTAINER = [[ <HorizontalLayout class="groupingContainer">${gamePieceGroups}</HorizontalLayout> ]]
@@ -93,30 +92,24 @@ local groupData = {
     uuid = "${uuid}"${singleGamePiece},
     uiHeight = ${height},
     uiWidth = ${width}
-} ]]
-local CHANGING_CHARACTERISTICS_TEMPLATE = [[,
-    changingCharacteristics = {
-        ${changingChars}
-    },
-]]
-local WEAPON_TEMPLATE_9E = [[[c6c930]${name}[-]
-${rangeAndType} S:${s} AP:${ap} D:${d} ${ability} ]]
-local RANGED_WEAPON_TEMPLATE_10E = [[[c6c930]${name}[-]
-${range} A:${a} BS:${bs} S:${s} AP:${ap} D:${d} [7bc596]${ability}[-] ]]
-local MELEE_WEAPON_TEMPLATE_10E = [[[c6c930]${name}[-]
-A:${a} WS:${ws} S:${s} AP:${ap} D:${d} [7bc596]${ability}[-] ]]
-local DEFAULT_BRACKET_VALUE_TEMPLATE = "[98ffa7]${val}[-]"
-local ABILITITY_STRING_TEMPLATE = '{ name = [[${name}]], desc = [=[${desc}]=] }'
-local WEAPON_ENTRY_TEMPLATE_9E = '{ name="${name}", range=[[${range}]], type="${type}", s="${s}", ap="${ap}", d="${d}", abilities=[[${abilities}]] }'
-local WEAPON_ENTRY_TEMPLATE_10E = '{ name="${name}", range=[[${range}]], a="${a}", bsws="${bsws}", s="${s}", ap="${ap}", d="${d}", abilities=[[${abilities}]], shortabilities=[[${shortabilities}]] }'
-local CHANGING_CHARACTERISTICS_ENTRY_TEMPLATE = '["${name}"] = { "${characteristics}" }'
-local WOUND_TRACK_ENTRY_TEMPLATE = [[       ["${name}"] = {
-            ${tracks}
-        }]]
-local PSYKER_PROFILE_TEMPLATE = [[      ["${name}"] = ${profiles}]]
-local PSYCHIC_POWER_TEMPLATE = [[${name} (${warpCharge}, ${range})]]
-local PSYCHIC_POWER_ENTRY_TEMPLATE = '{ name="${name}", warpCharge="${warpCharge}", range=[[${range}]], details=[[${details}]] }'
 
+    
+    uuid = "${uuid}",
+    name = "${unitName}",
+    type = "${type}",
+    unitClass = "${unitClass}",
+    meta = ${},
+    unitAsset = ${},
+    models = ${models},
+    game = "${game}",
+    dataSet = "${dataSet}",
+    edition = "${edition}",
+    version = "${version}",
+    hash = "${hash}",
+    unitName = "${unitName}"
+    uiWidth = ${width},
+    uiHeight = ${height}
+} ]]
 
 
 
@@ -273,7 +266,13 @@ function handleResponse(response)
         loadedData.xml = data.xml
         loadedData.order = data.order
         loadedData.useDecorativeNames = data.decorativeNames == "true"
+        loadedData.name = data.name
+        loadedData.game = data.game
         loadedData.edition = data.edition
+        loadedData.dataSet = data.dataSet
+        loadedData.app = data.app
+        loadedData.appVersion = data.appVersion
+        loadedData.hash = data.hash
     end
 end
 
@@ -359,7 +358,7 @@ function onPlayerAction(player, action, targets)
         end)
 
         for _,activeButton in pairs(activeButtons) do
-            local buttonGamePiece = army[activeButton.group].gamePieces[activeButton.gamePiece]
+            local buttonModel = army[activeButton.unit].models[activeButton.model]
 
             buttonGamePiece.associatedGamePieces = targetsData
 
@@ -392,10 +391,10 @@ function selectGamePieceGroup(player,_, groupAndGamePieceID)
     local sameButtonIndex = find(map(activeButtons, |button| button.buttonID), groupAndGamePieceID)
 
     if sameButtonIndex > 0 then
-        for _,gamePieceData in ipairs(army[groupID].gamePieces[gamePieceID].associatedGamePieces) do
-            getObjectFromGUID(gamePieceData.GUID).highlightOff()
+        for _,modelData in ipairs(army[unitID].models[modelID].associatedModels) do
+            getObjectFromGUID(modelData.GUID).highlightOff()
         end
-        army[groupID].gamePieces[gamePieceID].associatedGamePieces = nil
+        army[unitID].models[modelID].associatedModels = nil
         table.remove(activeButtons, sameButtonIndex)
         self.UI.setAttribute(groupAndGamePieceID, "color", "White")
     else
@@ -416,9 +415,9 @@ function hideAssociatedGamePiece(_,_, button)
     highlightAssociatedGamePiece(button, false)
 end
 
-function highlightAssociatedGamePiece(groupAndGamePieceID, on)
-    local idValues = split(groupAndGamePieceID, "|")
-    local buttonGamePiece = army[idValues[1]].gamePieces[idValues[2]]
+function highlightAssociatedModel(unitAndModelID, on)
+    local idValues = split(unitAndModelID, "|")
+    local buttonModel = army[idValues[1]].models[idValues[2]]
 
     if buttonGamePiece.associatedGamePieces ~= nil and #buttonGamePiece.associatedGamePieces > 0 then
         for _,associatedGamePiece in ipairs(buttonGamePiece.associatedGamePieces) do
@@ -509,25 +508,26 @@ end
 
 
 
-
+-- TTSLuaExtractor embed "C:\Users\Kevin\Documents\My Games\Tabletop Simulator\Mods\Workshop\ys-universal.json" K:\Dropbox\Websites\Yellowscribe\tts-mod\src K:\Dropbox\Websites\Yellowscribe\tts-mod\src 
 
 
 --[[ ARMY CREATION ]]--
 
 -- formats and creates the army based on selected gamePieces
 function createArmy()
-    -- we only want to create gamePieces for ones that have a gamePiece selected
-    local groupsToCreate = filter(army, function (group)
-        group.gamePieces = filter(group.gamePieces, function (gamePiece)
-            if gamePiece.associatedGamePieces == nil or #gamePiece.associatedGamePieces == 0 then
-                -- make sure we are spawning thr right number of gamePieces if only part of a group is beign spawned
-                group.gamePieces.totalNumberOfGamePieces = group.gamePieces.totalNumberOfGamePieces - gamePiece.number
+    -- we only want to create models for ones that have a model selected
+    print("Creating army...")
+    local unitsToCreate = filter(army, function (unit)
+        unit.models = filter(unit.models, function (model)
+            if model.associatedModels == nil or #model.associatedModels == 0 then
+                -- make sure we are spawning thr right number of models if only part of a unit is beign spawned
+                unit.models.totalNumberOfModels = unit.models.totalNumberOfModels - model.quantity
             end
 
             return gamePiece.associatedGamePieces ~= nil and #gamePiece.associatedGamePieces > 0
         end)
 
-        return len(group.gamePieces) > 0
+        return len(unit.models) > 0
     end)
 
     if len(groupsToCreate) == 0 then
@@ -536,16 +536,17 @@ function createArmy()
     end
 
     -- delete anything that might get in the way in the future
+    print("Deleting objects in creation zone...")
     deleteAllObjectsInCreationZone()
 
     -- this feels so inefficient to go through the array so many times,
     -- but at this point, the array really shouldn't be that long,
     -- so I dont have to worry too much about big-O
-    groupsToCreate = table.sort(map(groupsToCreate, function (group)
-        group.gamePieces = table.sort(group.gamePieces, |gamePieceA, gamePieceB| gamePieceA.number < gamePieceB.number)
+    unitsToCreate = table.sort(map(unitsToCreate, function (unit)
+        unit.models = table.sort(unit.models, |modelA, modelB| modelA.quantity < modelB.quantity)
 
-        --[[ for _,gamePiece in ipairs(group.gamePieces) do
-            gamePiece.associatedGamePiece = getObjectFromGUID(gamePiece.associatedGamePiece)
+        --[[ for _,model in ipairs(unit.models) do
+            model.associatedModel = getObjectFromGUID(model.associatedModel)
         end --]]
 
         group.footprint = determineFootprint(group)
@@ -558,11 +559,15 @@ function createArmy()
 
         return groupA.footprint.width > groupB.footprint.width
     end)
+    print("Sorting units...")
 
     local selfPosition = self.getPosition()
+    print("Determining army placement...")
 
-    -- at this point, we should have a list of groups sorted by width then height of their footprints
-    placeArmy(groupsToCreate, ARMY_PLACEMENT_STARTING_X + selfPosition.x, ARMY_PLACEMENT_STARTING_Z + selfPosition.z, selfPosition.y)
+    -- at this point, we should have a list of units sorted by width then height of their footprints
+    placeArmy(unitsToCreate, ARMY_PLACEMENT_STARTING_X + selfPosition.x, ARMY_PLACEMENT_STARTING_Z + selfPosition.z, selfPosition.y)
+
+    print("Army created!")
 end
 
 
@@ -575,8 +580,9 @@ function placeArmy(groupMap, startingX, startingZ, startingY)
 
         -- try to place at an origin
         for idx,slot in ipairs(emptySlots) do
-            if group.footprint.height <= slot.h and group.footprint.width <= slot.w then
-                placeGroup(group, startingX-slot.x, startingZ+slot.z, startingY)
+            if unit.footprint.height <= slot.h and unit.footprint.width <= slot.w then
+                print("Placing "..unit.name.." at origin...")
+                placeUnit(unit, startingX-slot.x, startingZ+slot.z, startingY)
 
                 if DEBUG then
                     table.insert(SLOT_POINTS.placed, { points= {
@@ -642,8 +648,9 @@ function placeArmy(groupMap, startingX, startingZ, startingY)
         if placedInEmptySlot then -- do nothing
 
         -- if expanding upward makes sense
-        elseif (boundingBox.h + group.footprint.height) < (boundingBox.w * BOUNDING_BOX_RATIO) then
-            placeGroup(group, startingX, startingZ + boundingBox.h, startingY)
+        elseif (boundingBox.h + unit.footprint.height) < (boundingBox.w * BOUNDING_BOX_RATIO) then
+            print("Placing "..unit.name.." at top...")
+            placeUnit(unit, startingX, startingZ + boundingBox.h, startingY)
 
             if DEBUG then
                 table.insert(SLOT_POINTS.placed, { points= {
@@ -680,7 +687,8 @@ function placeArmy(groupMap, startingX, startingZ, startingY)
 
         -- else place at far left
         else
-            placeGroup(group, startingX - boundingBox.w, startingZ, startingY)
+            print("Placing "..unit.name.." at left...")
+            placeUnit(unit, startingX - boundingBox.w, startingZ, startingY)
 
             if DEBUG then
                 table.insert(SLOT_POINTS.placed, { points= {
@@ -760,33 +768,38 @@ function placeGroup(group, startX, startZ, startY)
     local isFirstGamePiece = true
     local xOffset = startX - DEFAULT_FOOTPRINT_PADDING -- left is negative
     local zOffset = startZ + DEFAULT_FOOTPRINT_PADDING -- up is positive
-    local gamePieceSize
-    local currentRowHeight,currentGamePiecesInRow = 0,0
-    local leaderData = formatLeaderScript(group)
+    local modelSize
+    local currentRowHeight,currentModelsInRow = 0,0
+    print("formatting unit data...")
+    local leaderData = formatLeaderScript(unit)
 
-    for gamePieceID,gamePiece in pairs(group.gamePieces) do
-        --local currentGamePieceObj = getObjectFromGUID(gamePiece.associatedGamePiece)
+    for modelID,model in pairs(unit.models) do
+        print("placing model "..modelID)
+        --local currentModelObj = getObjectFromGUID(model.associatedModel)
         -- I dont remember why I'm passing the data as an object instead of just as arguments
-        local gamePieceProfile = getProfileForGamePiece(gamePiece, group)
-        local gamePieceDescription = gamePiece.ttsDescription
-        local gamePieceNickname = gamePiece.ttsNickname..getGamePieceDisplayName(gamePiece, group)
-        local gamePieceTags = getGamePieceTags(gamePiece, group)
 
-        local gamePieceData = formatGamePieceData(gamePiece.associatedGamePieces,
-                                            gamePieceDescription,
-                                            gamePieceNickname,
-                                            gamePieceTags)
+        local modelDescription = model.ttsDescription
+        local modelTags = getModelTags(model, unit)
+        printKeysAndLengths(modelTags)
 
-        gamePieceSize = gamePiece.associatedGamePieceBounds.size
-        --log(gamePiece)
+        local modelData = formatModelData(model.associatedModels,
+                                            modelDescription,
+                                            modelNickname,
+                                            modelTags)
+        printKeysAndLengths(modelData)
 
-        if currentRowHeight < gamePieceSize.z then currentRowHeight = gamePieceSize.z end
+        modelSize = model.associatedModelBounds.size
+        log(model)
+        -- print("model size: "..modelSize)
 
-        for i=1,gamePiece.number do
-            createGamePieceFromData(chooseRandomGamePiece(gamePieceData),
-                                --group.decorativeName and group.decorativeName or group.name,
-                                xOffset-(gamePieceSize.x*0.5),
-                                zOffset+(gamePieceSize.z*0.5),
+        if currentRowHeight < modelSize.z then currentRowHeight = modelSize.z end
+        print("current row height: "..currentRowHeight)
+
+        for i=1,model.quantity do
+            createModelFromData(chooseRandomModel(modelData),
+                                --unit.decorativeName and unit.decorativeName or unit.name,
+                                xOffset-(modelSize.x*0.5),
+                                zOffset+(modelSize.z*0.5),
                                 startY,
                                 leaderData)
             table.insert(SLOT_POINTS.gamePieces,{ points = {
@@ -809,14 +822,18 @@ function placeGroup(group, startX, startZ, startY)
                 xOffset = xOffset - (gamePieceSize.x + DEFAULT_GAMEPIECE_SPACING)
             end
         end
+        print("placed model "..modelID)
     end
 end
 
--- determines how much space a group should take up once it is created
-function determineFootprint(group)
-    -- determine gamePieces per row
-    local gamePiecesPerRow = group.gamePieces.totalNumberOfGamePieces
-    local currentGamePiecesInRow,currentWidth,footprintWidth,footprintHeight,gamePiecesLeft = 0,0,0,0,0
+-- determines how much space a unit should take up once it is created
+function determineFootprint(unit)
+    -- determine models per row
+    local modelsPerRow = 0
+    for _, model in pairs(unit.models) do
+        modelsPerRow = modelsPerRow + model.quantity
+    end
+    local currentModelsInRow,currentWidth,footprintWidth,footprintHeight,modelsLeft = 0,0,0,0,0
     local currentRow = 1
     local currentHeights = {}
     local currentGamePieceBounds
@@ -834,22 +851,22 @@ function determineFootprint(group)
 
     group.gamePiecesPerRow = gamePiecesPerRow
 
-    -- I realize that this is doing almost exactly what we will do later when actually creating the gamePieces
-    -- unfortunately, this is the only way that I can think of to guarantee the footprint of a group
-    -- with gamePieces of different sizes
-    for _,gamePiece in pairs(group.gamePieces) do
-        currentGamePieceBounds = gamePiece.associatedGamePieceBounds.size
+    -- I realize that this is doing almost exactly what we will do later when actually creating the models
+    -- unfortunately, this is the only way that I can think of to guarantee the footprint of a unit
+    -- with models of different sizes
+    for _,model in pairs(unit.models) do
+        currentModelBounds = model.associatedModelBounds.size
 
         if currentHeights[currentRow] == nil or currentGamePieceBounds.z > currentHeights[currentRow] then
             currentHeights[currentRow] = currentGamePieceBounds.z
         end
 
-        if (currentGamePiecesInRow + gamePiece.number) >= gamePiecesPerRow then
-            currentWidth = currentWidth + ((gamePiecesPerRow - currentGamePiecesInRow) * (currentGamePieceBounds.x + DEFAULT_GAMEPIECE_SPACING))
+        if (currentModelsInRow + model.quantity) >= modelsPerRow then
+            currentWidth = currentWidth + ((modelsPerRow - currentModelsInRow) * (currentModelBounds.x + DEFAULT_MODEL_SPACING))
 
             if currentWidth > footprintWidth then footprintWidth = currentWidth end
 
-            gamePiecesLeft = gamePiece.number - (gamePiecesPerRow - currentGamePiecesInRow)
+            modelsLeft = model.quantity - (modelsPerRow - currentModelsInRow)
             currentRow = currentRow + 1
 
             while gamePiecesLeft >= gamePiecesPerRow do
@@ -868,8 +885,8 @@ function determineFootprint(group)
 
             currentWidth = currentGamePiecesInRow * (currentGamePieceBounds.x + DEFAULT_GAMEPIECE_SPACING)
         else
-            currentWidth = currentWidth + (gamePiece.number * (currentGamePieceBounds.x + DEFAULT_GAMEPIECE_SPACING))
-            currentGamePiecesInRow = currentGamePiecesInRow + gamePiece.number
+            currentWidth = currentWidth + (model.quantity * (currentModelBounds.x + DEFAULT_MODEL_SPACING))
+            currentModelsInRow = currentModelsInRow + model.quantity
         end
     end
 
@@ -900,72 +917,28 @@ end
 function formatLeaderScript(group)
     return interpolate(GROUP_SPECIFIC_DATA_TEMPLATE, {
         edition = edition,
-        groupName = group.name,
-        groupDecorativeName = (group.decorativeName ~= nil and group.decorativeName ~= "") and group.decorativeName:gsub('"', '\\"') or group.name,
+        unitName = unit.name,
 
-        factionKeywords = table.concat(group.factionKeywords, ", "), -- dont break xml   --map(group.factionKeywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
-
-        keywords = table.concat(group.keywords, ", "), -- dont break xml   --map(group.keywords, |keyword| (keyword:gsub(">", "＞"):gsub("<", "＜")))
-
-        abilities = getFormattedAbilities(group.abilities, group.rules),
-
-        gamePieces = table.concat(map(group.gamePieceProfiles, function (profile)
-            -- if the group has brackets, treat each one as a separate gamePiece
-            if group.woundTrack ~= nil and group.woundTrack[profile.name] then
-                local toReturn = {}
-                local originalName = profile.name
-                local changing
-
-                for key,bracket in pairs(group.woundTrack[profile.name]) do
-                    profile.name = originalName.." ("..key..")"
-                    changing = tableToFlatString(profile)
-
-                    -- this seems like an inefficient way of doing it, but was the easiest to come up with
-                    for _,val in ipairs(bracket) do
-                        changing = changing:gsub("%*", val:gsub('"', '\\"'), 1)
-                    end
-
-                    table.insert(toReturn, changing)
-                end
-
-                return table.concat(toReturn, ",\n\t\t")
-            end
-
-            -- otherwise, just add the gamePiece
+        models = table.concat(map(unit.models, function (profile)
+            -- otherwise, just add the model
             return tableToFlatString(profile)
         end), ",\n\t\t"),
-
-        weapons = table.concat(map(group.weapons, |weapon| interpolate(edition == "10e" and WEAPON_ENTRY_TEMPLATE_10E or WEAPON_ENTRY_TEMPLATE_9E, weapon)), ",\n\t\t"),
+        meta = tableToFlatString(unit.meta),
+        unitAsset = tableToFlatString(unit.unitAsset),
 
         endBracket = "]]",
         uuid = group.uuid,
         height = uiHeight,
         width = uiWidth,
+        name = unit.name,
+        type = unit.type,
+        unitClass = unit.unitClass,
+        game = game,
+        dataSet = dataSet,
+        app = app,
+        appVersion = appVersion,
+        hash = hash,
 
-        changingCharacteristics = group.woundTrack == nil and "" or interpolate(CHANGING_CHARACTERISTICS_TEMPLATE, {
-            changingChars = formatChangingCharacteristics(group)
-        }),
-
-        woundTrack = group.woundTrack == nil and "" or "\twoundTrack = "..tableToString(map(group.woundTrack, function (tracks, name)
-            return interpolate(WOUND_TRACK_ENTRY_TEMPLATE, {
-                tracks = table.concat(map(tracks, function (track, key)
-                    local temp = '["'..key..'"] = { "'
-
-                    temp = temp..table.concat(map(track, |val| (val:gsub('"', '\\"'))), '", "')
-
-                    return temp..'" }'
-                end), ",\n\t\t\t", start_index, end_index ),
-                name = name
-            })
-
-        end), ",\n", true, "\t"),
-
-        singleGamePiece = (not group.isSingleGamePiece) and "" or ",\n\tisSingleGamePiece = true",
-
-        psychic = group.psykerProfiles == nil and "" or ",\n\tpsykerProfiles = "..
-            tableToString(map(group.psykerProfiles, |profile| tableToFlatString(profile)), ",\n\t\t", true, "\t", "\t\t")..
-            ",\n\tpowersKnown = "..
-            tableToString(map(group.powersKnown, |power| interpolate(PSYCHIC_POWER_ENTRY_TEMPLATE, power)), ",\n\t\t", true, "\t", "\t\t")
     })..YELLOW_STORAGE_SCRIPT
 end
 
@@ -1003,10 +976,10 @@ function formatChangingCharacteristics(group)
     return table.concat(toReturn, ",\n\t\t")
 end
 
-function getGamePieceDisplayName(gamePiece, group)
-    if group.isSingleGamePiece or useDecorativeNames then
-        if group.decorativeName ~= nil and group.decorativeName ~= "" then
-            return group.decorativeName
+function getModelDisplayName(model, unit)
+    if useDecorativeNames then
+        if unit.decorativeName ~= nil and unit.decorativeName ~= "" then
+            return unit.decorativeName
         else
             return gamePiece.name
         end
@@ -1015,15 +988,6 @@ end
 
 function getGamePieceTags(gamePiece, group)
     local tags = { "uuid:"..group.uuid }
-
-    if group.woundTrack ~= nil then
-        for key,_ in pairs(group.woundTrack) do
-            if key == gamePiece.name then table.insert(tags, "wt:"..gamePiece.name)
-            -- this is a special case for Armigers (i.e. groups that have multiple of the same gamePiece that has a wound track)
-            -- where the data source creator named the profile in the plural ("Armigers")
-            elseif key == gamePiece.name.."s" then table.insert(tags, "wt:"..gamePiece.name.."s") end
-        end
-    end
 
     return tags
 end
@@ -1080,9 +1044,10 @@ function createGamePieceFromData(gamePieceData, x, z, y, leaderGamePieceScript)
     spawnObjectData(spawnData)
 end
 
--- finds the appropriate characteristic profile for the given gamePiece in the given group
-function getProfileForGamePiece(gamePiece, group)
-    local otherGamePiecesProfile = nil
+-- finds the appropriate characteristic profile for the given model in the given unit
+function getProfileForModel(model, unit)
+    print("getting profile for model: "..model.name)
+    local otherModelsProfile = nil
 
     -- This is for compatibility with Crusade F2P. Crusade F2P generates a slightly tweaked form of
     -- army list where the profiles table is indexed by a unique ID instead of by name, and gamePieces then
@@ -1133,7 +1098,6 @@ end
 function titlecase(s)
     return s:gsub("^(%w)", |a| a:upper())
 end
-
 
 
 function deleteAllObjectsInCreationZone()
@@ -1187,6 +1151,11 @@ function loadEditedArmy(data)
     edition = data.edition
     uiHeight = data.uiHeight
     uiWidth = data.uiWidth
+    game = data.game
+    dataSet = data.dataSet
+    app = data.app
+    appVersion = data.appVersion
+    hash = data.hash
     useDecorativeNames = data.useDecorativeNames
     --YELLOW_STORAGE_SCRIPT = armyData.baseScript -- yes I know I'm assigning a new value to something I marked as a constant, sue me
 
@@ -1232,27 +1201,44 @@ function getLoadedArmyXML(order)
         currentGroupContainerHeight = 0
         totalGroupContainerHeight = 50 -- name
 
-        for gamePieceID,gamePiece in pairs(group.gamePieces) do
-            gamePieceInGroupCount = gamePieceInGroupCount + 1
-            gamePieceDataForXML = getGamePieceDataForXML(uuid, gamePieceID, gamePiece, group.weapons)
-            gamePieceGroupString = gamePieceGroupString..interpolate(uiTemplates.GAMEPIECE_CONTAINER, gamePieceDataForXML)
+        -- print unit.meta table as string
+        -- print("unit: "..unit.name.." - "..unit.type.." - "..unit.unitClass..", ")
+
+        if countKeys(unit.models) > 0 then
+            for modelID,model in pairs(unit.models) do
+                modelInUnitCount = modelInUnitCount + 1
+                modelDataForXML = getModelDataForXML(uuid, modelID, model, 1)
+                modelGroupString = modelGroupString..interpolate(uiTemplates.MODEL_CONTAINER, modelDataForXML)
+
+                if modelDataForXML.height > maxModelHeight then
+                    maxModelHeight = modelDataForXML.height
+                    currentUnitContainerHeight = modelDataForXML.height
+                end
+
+                if modelInUnitCount % 4 == 0 then
+                    unitDataString = unitDataString..interpolate(uiTemplates.MODEL_GROUPING_CONTAINER, {
+                        modelGroups = modelGroupString,
+                        width = "1000",
+                        height = maxModelHeight
+                    })
+
+                    modelInUnitCount = 0
+                    maxModelHeight = 0
+                    modelGroupString = ""
+                    totalUnitContainerHeight = totalUnitContainerHeight + currentUnitContainerHeight + 20 -- spacing
+                end
+            end
+        else
+            modelInUnitCount = 1
+            unit.models = {}
+            standaloneUUID = generateUUID();
+            unit.models[standaloneUUID] = unit.unitAsset
+            modelDataForXML = getModelDataForXML(uuid, standaloneUUID, unit.unitAsset, 0)
+            modelGroupString = modelGroupString..interpolate(uiTemplates.MODEL_CONTAINER, modelDataForXML)
 
             if gamePieceDataForXML.height > maxGamePieceHeight then
                 maxGamePieceHeight = gamePieceDataForXML.height
                 currentGroupContainerHeight = gamePieceDataForXML.height
-            end
-
-            if gamePieceInGroupCount % 4 == 0 then
-                groupDataString = groupDataString..interpolate(uiTemplates.GAMEPIECE_GROUPING_CONTAINER, {
-                    gamePieceGroups = gamePieceGroupString,
-                    width = "1000",
-                    height = maxGamePieceHeight
-                })
-
-                gamePieceInGroupCount = 0
-                maxGamePieceHeight = 0
-                gamePieceGroupString = ""
-                totalGroupContainerHeight = totalGroupContainerHeight + currentGroupContainerHeight + 20 -- spacing
             end
         end
 
@@ -1279,62 +1265,59 @@ function getLoadedArmyXML(order)
 end
 
 
-function getGamePieceDataForXML(groupID, gamePieceID, gamePiece, characteristicProfiles)
-    local weaponSection,abilitiesSection = "",""
+function getModelDataForXML(unitID, modelID, model,startingDepth)
     local totalCardHeight = 40 -- name
-
-    gamePiece.weapons = table.sort(gamePiece.weapons, function (weaponA,weaponB) --combine(gamePiece.weapons, gamePiece.assignedWeapons)
-        if edition == "10e" then
-            local rangeA = trim(characteristicProfiles[weaponA.name].range):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
-            local rangeB = trim(characteristicProfiles[weaponB.name].range):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
-            local aIsMelee = rangeA == "melee" and 1 or 0
-            local bIsMelee = rangeB == "melee" and 1 or 0
-
-            if aIsMelee == bIsMelee then return weaponA.name < weaponB.name end
-            return aIsMelee < bIsMelee
-        else
-            local typeA = trim(characteristicProfiles[weaponA.name].type):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
-            local typeB = trim(characteristicProfiles[weaponB.name].type):gsub("%s+%d?D?d?%/?%d+$", ""):lower()
-            local typeAVal = WEAPON_TYPE_VALUES[typeA] == nil and 0 or WEAPON_TYPE_VALUES[typeA]
-            local typeBVal = WEAPON_TYPE_VALUES[typeB] == nil and 0 or WEAPON_TYPE_VALUES[typeB]
-
-            if typeAVal == typeBVal then return weaponA.name < weaponB.name end
-            return typeAVal < typeBVal
-        end
-    end)
-
-    if gamePiece.weapons ~= nil and #gamePiece.weapons > 0 then
-        weaponSection = interpolate(uiTemplates.GAMEPIECE_DATA, {
-            dataType = "Weapons:",
-            data = table.concat(map(gamePiece.weapons,
-                                    |weapon| weapon.number == 1 and weapon.name or (weapon.number.."x "..weapon.name))
-                                ,"\n"),
-            height = 37 * #gamePiece.weapons
-        })
-        totalCardHeight = totalCardHeight + (37 * #gamePiece.weapons) + (#gamePiece.abilities > 0 and 55 or 60) -- title and spacer
-    end
-
-    if #gamePiece.abilities > 0 then
-        abilitiesSection = interpolate(uiTemplates.GAMEPIECE_DATA, {
-            dataType = "Abilities:",
-            data = table.concat(gamePiece.abilities, "\n"),
-            height = 37 * #gamePiece.abilities
-        })
-        totalCardHeight = totalCardHeight + (37 * #gamePiece.abilities) + 60 -- title and spacer
-    end
+    local assetsSection = interpolateUnitAndAssets(model.assets,startingDepth)
+    
+    totalCardHeight = totalCardHeight + assetsSection.height
 
     return {
-        gamePieceName = gamePiece.name,
-        numberString = gamePiece.number > 1 and (tostring(gamePiece.number).."x ") or "",
-        weapons = weaponSection,
-        abilities = abilitiesSection,
-        groupID = groupID,
-        gamePieceID = gamePieceID,
+        modelName = model.name,
+        qtyString = model.quantity > 1 and (tostring(model.quantity).."× ") or "",
+        assets = assetsSection.data,
+        unitID = unitID,
+        modelID = modelID,
         height = totalCardHeight
     }
 end
 
+function interpolateUnitAndAssets(assetsTable,startingDepth)
+    local group = nil
+    local assets = {}
+    local result = ""
+    local height = 0
 
+    for _, element in ipairs(assetsTable) do
+        if element.group and element.assetDepth == (startingDepth + 1) then
+            if group then
+                result = result .. interpolate(uiTemplates.MODEL_DATA, {
+                    dataType = group,
+                    data = table.concat(assets, "\n"),
+                    height = 37 * #assets
+                })
+                height = height + 40 + 37 * #assets
+                assets = {}
+            end
+            group = element.group
+        elseif element.assetDepth == (startingDepth + 1) then
+            table.insert(assets, element.name)
+        end
+    end
+
+    if group then
+        result = result .. interpolate(uiTemplates.MODEL_DATA, {
+            dataType = group,
+            data = table.concat(assets, "\n"),
+            height = 37 * #assets
+        })
+        height = height + 37 * #assets
+    end
+
+    return {
+        data = result,
+        height = height
+    }
+end
 
 
 
@@ -1457,39 +1440,79 @@ function trim(s)
     return s:match'^()%s*$' and '' or s:match'^%s*(.*%S)'
 end
 
--- this should only ever be used with one dimensional tables
+-- Converts a table to a flat string representation
 function tableToFlatString(t)
     return tableToString(t, ", ")
 end
 
--- this is not a particularly robust solution, it is only really for my purposes in this script
--- thus, I very much do not recommend anyone copy this
--- note to self: can make it recursive to traverse multi-dimensional tables but eh
--- warnings:
---      this assumes a table is array-like if the key "1" exists,
---      this assumes all values are strings
+-- Converts a table to a string representation, recursively handling multi-dimensional tables
+-- Assumptions:
+--   - Keys are either strings or numbers
+--   - Values can be strings, numbers, or nested tables
 function tableToString(t, delimiter, bracketsOnNewLine, extraTabbing, tabBeforeFirstElement)
     local out = "{ "
-    local arrayLike = t[1] ~= nil
+    local arrayLike = t[1] ~= nil  -- Detect if the table is array-like (has numeric indices starting from 1)
 
-    if bracketsOnNewLine ~= nil and bracketsOnNewLine then
-        out = out.."\n"..(tabBeforeFirstElement ~= nil and tabBeforeFirstElement or "")
+    if bracketsOnNewLine then
+        out = out .. "\n" .. (tabBeforeFirstElement or "")
     end
 
-    out = out..table.concat(map(t, function (v,k)
-        if arrayLike then return v end
-        return k..'="'..v:gsub('"', '\\"')..'"'
-    end), delimiter)
+    local elements = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            -- Recursively convert nested tables
+            v = tableToString(v, delimiter, bracketsOnNewLine, extraTabbing and extraTabbing .. "\t" or "\t")
+        else
+            if type(v) == "string" then
+                v = '"' .. v:gsub('"', '\\"') .. '"' -- Escape double quotes in strings
+            end
+        end
 
-    if bracketsOnNewLine ~= nil and bracketsOnNewLine then
-        return out.."\n"..(extraTabbing ~= nil and extraTabbing or "").."}"
+        if arrayLike then
+            table.insert(elements, v)
+        else
+            table.insert(elements, tostring(k) .. "=" .. tostring(v))
+        end
     end
 
-    return out.." }"
+    out = out .. table.concat(elements, delimiter)
+
+    if bracketsOnNewLine then
+        return out .. "\n" .. (extraTabbing or "") .. "}"
+    end
+
+    return out .. " }"
 end
 
-function removeGamePieceByID(groupID, gamePieceID)
-    loadedData[groupID].gamePieces[gamePieceID] = nil
+
+-- print table's keys and value lengths
+function countKeys(t)
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+function printKeysAndLengths(t)
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            print(k .. ": (table with " .. countKeys(v) .. " elements)")
+        else
+            print(k .. ": " .. tostring(v))
+        end
+    end
+end
+
+function generateUUID()
+    local uuid = ""
+    for i = 1, 16 do
+        uuid = uuid .. string.format("%x", math.random(0, 15))
+    end
+    return uuid
+end
+
+function removeModelByID(unitID, modelID)
+    loadedData[unitID].models[modelID] = nil
 end
 
 function sortGamePieces(tbl, sortFunction)
@@ -1514,8 +1537,8 @@ function uuid()
     end)
 end
 
-function removeGamePieceByID(groupID, gamePieceID)
-    loadedData[groupID].gamePieces[gamePieceID] = nil
+function removeModelByID(unitID, modelID)
+    loadedData[unitID].models[modelID] = nil
 end
 
 function sortGamePieces(tbl, sortFunction)

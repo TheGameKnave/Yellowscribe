@@ -6,7 +6,7 @@
 <Panel id="ym-container" visibility="hidden" group-id="">
     <VerticalLayout childForceExpandHeight="false" childAlignment="TopLeft" id="dataCard" height="700" width="1200" color="#222222" allowDragging="true" returnToOriginalPositionWhenReleased="false">
         <Panel preferredHeight="40" childForceExpandWidth="false" color="#222222">
-            <Text id="data-groupName" fontStyle="Bold" fontSize="26" color="#fafafa" alignment="MiddleCenter" />
+            <Text id="data-unitName" fontStyle="Bold" fontSize="26" color="#fafafa" alignment="MiddleCenter" />
             <Panel rectAlignment="UpperRight" height="30" width="30">
                 <Button transition="None" preferredHeight="24" preferredWidth="24" padding="3 3 3 3" resizeTextForBestFit="true" textAlignment="MiddleCenter" height="30" width="30" color="#ffaa00" textColor="#fafafa" id="dataCardCloseButton">X</Button>
             </Panel>
