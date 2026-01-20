@@ -70,26 +70,30 @@ function parsemodel(asset, uuid) {
 }
 function discoverUnits(rosterYs, asset, isInUnit = false) {
     let hasChildmodels = false;
-    let isUnit = false;
-    // console.log('discoverUnits',asset.item);
     ['traits','included'].forEach(division => {
-      console.log('checking', division, 'of', asset.item);
         for (let subAsset of asset.assets?.[division]) {
-            if (subAsset.aspects.Type === 'game piece' && subAsset.meta?.ttsPartOfUnit) {
+            if (subAsset.aspects.Type === 'game piece') {
                 hasChildmodels = true;
-                isUnit = true;
             }
-            discoverUnits(rosterYs, subAsset, isUnit);
+            // Don't pass isInUnit flag down - each level decides independently
+            discoverUnits(rosterYs, subAsset, false);
         }
     });
     if (hasChildmodels && asset.parent && !isInUnit) {
-        console.log('Adding unit', asset.item);
+        // Mark all child game pieces as ttsPartOfUnit before parsing
+        ['traits','included'].forEach(division => {
+            for (let subAsset of asset.assets?.[division]) {
+                if (subAsset.aspects.Type === 'game piece') {
+                    if (!subAsset.meta) subAsset.meta = {};
+                    subAsset.meta.ttsPartOfUnit = true;
+                }
+            }
+        });
         rosterYs.addUnit(parseUnit(asset, require('crypto').randomBytes(4).toString('hex')));
     }else{
         ['traits','included'].forEach(division => {
             for (let subAsset of asset.assets?.[division]) {
                 if (subAsset.aspects.Type === 'game piece' && (!asset.parent || !subAsset.meta?.ttsPartOfUnit)) {
-                    console.log('Adding model', subAsset.item);
                     rosterYs.addUnit(parsemodel(subAsset, require('crypto').randomBytes(4).toString('hex')));
                 }
             }
